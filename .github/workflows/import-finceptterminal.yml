@@ -1,0 +1,46 @@
+name: Import FinceptTerminal
+
+on:
+  push:
+    paths:
+      - .github/workflows/import-finceptterminal.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kobefinance
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Import FinceptTerminal code
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          tmp="$(mktemp -d)"
+          git clone --depth=1 https://github.com/Fincept-Corporation/FinceptTerminal.git "$tmp/source"
+
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github/workflows/import-finceptterminal.yml' \
+            "$tmp/source/" ./
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to import."
+            exit 0
+          fi
+
+          git commit -m "Initial import from FinceptTerminal"
+          git push origin HEAD:main

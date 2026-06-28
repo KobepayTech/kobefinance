@@ -22,6 +22,10 @@ Working foundation:
   on a timer, mixing global and African listings in local currencies.
 - **Markets** — browse every exchange grouped by region; live listings table
   with a per-row live/simulated source indicator.
+- **Charts** — price-history line chart (native QtCharts) with 1M/3M/6M/1Y
+  ranges, fetched off the UI thread; live history where available, synthetic
+  history (anchored to the current price) elsewhere. Type a ticker in the
+  command bar to jump straight to its chart.
 - **Global + comprehensive African coverage** — 30+ exchanges (all of Africa
   plus Nasdaq/NYSE/LSE/crypto), each with country, currency, MIC and
   timezone. Quotes are currency-aware (R, ₦, KSh, ₵, ₨, E£, CFA, … with ISO
@@ -92,10 +96,11 @@ pytest
 ## Roadmap
 
 1. ~~Live data provider (Yahoo) behind `MarketDataProvider`.~~ ✅
-2. More feeds for African exchanges with no free Yahoo coverage (official/paid
+2. ~~Price-history charts.~~ ✅
+3. More feeds for African exchanges with no free Yahoo coverage (official/paid
    APIs for NGX, NSE, EGX, …).
-3. Price/volume charts with technical indicators.
-4. Watchlist screen with editable symbols.
-5. Portfolio tracking and risk metrics (returns, Sharpe, drawdown, VaR).
-6. News aggregation and an AI chat/analysis screen (Claude-backed).
-7. Persisted layout and user settings.
+4. Candlesticks + volume + technical indicators on the chart.
+5. Watchlist screen with editable symbols.
+6. Portfolio tracking and risk metrics (returns, Sharpe, drawdown, VaR).
+7. News aggregation and an AI chat/analysis screen (Claude-backed).
+8. Persisted layout and user settings.

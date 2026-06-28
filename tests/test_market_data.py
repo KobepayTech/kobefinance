@@ -73,3 +73,18 @@ def test_tick_is_deterministic_for_seed():
 def test_default_universe_loads():
     p = SimulatedProvider()
     assert len(p.symbols()) > 50  # comprehensive African + global coverage
+
+
+def test_synth_history_length_and_anchor():
+    p = SimulatedProvider(_toy_universe(), seed=3)
+    candles = p.history("AAA.JSE", "3M")
+    assert len(candles) == 90
+    # Series ends at the current simulated price.
+    assert abs(candles[-1].close - p.quote("AAA.JSE").price) < 0.5
+    # Timestamps strictly increase.
+    assert all(candles[i].ts < candles[i + 1].ts for i in range(len(candles) - 1))
+
+
+def test_history_unknown_uid_is_empty():
+    p = SimulatedProvider(_toy_universe())
+    assert p.history("NOPE.X") == []

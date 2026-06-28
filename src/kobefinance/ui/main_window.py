@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
 
         self._command_bar = CommandBar()
         self._command_bar.command.connect(self._on_command)
+        self._command_bar.lookup.connect(self._on_lookup)
         outer.addWidget(self._command_bar)
 
         self._ticker = TickerBar(self._provider)
@@ -109,8 +110,39 @@ class MainWindow(QMainWindow):
     def _on_command(self, token: str) -> None:
         if any(s.screen_id == token for s in REGISTRY):
             self.show_screen(token)
+            return
+        # Not a screen — try treating it as a ticker symbol.
+        uid = self._resolve_symbol(token)
+        if uid:
+            self._open_chart(uid)
         else:
-            self._status.flash(f"No screen '{token}'")
+            self._status.flash(f"No screen or symbol '{token}'")
+
+    def _on_lookup(self, text: str) -> None:
+        uid = self._resolve_symbol(text)
+        if uid:
+            self._open_chart(uid)
+        else:
+            self._status.flash(f"Symbol not found: {text}")
+
+    def _resolve_symbol(self, text: str) -> str | None:
+        """Resolve a typed symbol or uid to an instrument uid."""
+        text = text.strip().upper()
+        if not text:
+            return None
+        known = {i.uid: i for i in self._provider.instruments()}
+        if text in known:  # already a uid like NPN.JSE
+            return text
+        for uid, inst in known.items():
+            if inst.symbol.upper() == text:
+                return uid
+        return None
+
+    def _open_chart(self, uid: str) -> None:
+        screen = self._get_or_create("charts")
+        if screen is not None and hasattr(screen, "set_symbol"):
+            self.show_screen("charts")
+            screen.set_symbol(uid)
 
     # -- lifecycle ------------------------------------------------------------
 

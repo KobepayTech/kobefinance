@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kobefinance.models import Instrument
+from kobefinance.models import Candle, Instrument
 from kobefinance.services.live_data import (
     HybridProvider,
     YahooLiveProvider,
@@ -86,3 +86,35 @@ def test_hybrid_delegates_universe():
     hybrid = HybridProvider()
     assert len(hybrid.symbols()) > 50
     assert hybrid.instruments_for("JSE")
+
+
+def _fake_history(yahoo_sym: str, yahoo_range: str) -> list[Candle]:
+    return [Candle(1000 + i, 10, 11, 9, 10 + i, 100) for i in range(5)]
+
+
+def test_live_history_supported_vs_unsupported():
+    universe = [
+        Instrument("AAPL", "Apple", "NASDAQ", "USD", 100.0),
+        Instrument("MTNN", "MTN Nigeria", "NGX", "NGN", 50.0),
+    ]
+    live = YahooLiveProvider(universe, history_fetcher=_fake_history, request_gap=0)
+    assert len(live.history("AAPL.NASDAQ", "6M")) == 5
+    assert live.history("MTNN.NGX", "6M") == []  # unsupported -> empty
+
+
+def test_hybrid_history_prefers_live_then_synth():
+    sim = SimulatedProvider(
+        [
+            Instrument("AAPL", "Apple", "NASDAQ", "USD", 100.0),
+            Instrument("MTNN", "MTN Nigeria", "NGX", "NGN", 50.0),
+        ],
+        seed=1,
+    )
+    live = YahooLiveProvider(sim.instruments(), history_fetcher=_fake_history, request_gap=0)
+    hybrid = HybridProvider(simulated=sim, live=live)
+
+    # Live-capable -> uses the (injected) live history.
+    assert len(hybrid.history("AAPL.NASDAQ", "6M")) == 5
+    # Not live-capable -> synthesised series with the requested length.
+    synth = hybrid.history("MTNN.NGX", "1M")
+    assert len(synth) == 30

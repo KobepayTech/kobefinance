@@ -12,6 +12,7 @@ from .services.live_data import HybridProvider
 from .services.market_data import MarketDataProvider, SimulatedProvider
 from .ui.main_window import MainWindow
 from .ui.screens.base import REGISTRY, ScreenSpec, register
+from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.markets import MarketsScreen
 from .ui.screens.placeholder import PlaceholderScreen
@@ -44,6 +45,14 @@ def register_screens(provider: MarketDataProvider) -> None:
             screen_id="markets",
             title="Markets",
             factory=lambda: MarketsScreen(provider),
+            section="General",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="charts",
+            title="Charts",
+            factory=lambda: ChartsScreen(provider),
             section="General",
         )
     )

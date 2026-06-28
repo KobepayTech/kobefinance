@@ -20,15 +20,18 @@ import urllib.parse
 import urllib.request
 from typing import Callable
 
-from ..models import Instrument, Quote
+from ..models import Candle, Instrument, Quote
 from .exchanges import EXCHANGE_BY_CODE
-from .market_data import SimulatedProvider
+from .market_data import RANGES, SimulatedProvider
 
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
 _CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=1d&interval=1d"
+_HISTORY_URL = (
+    "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={range}&interval={interval}"
+)
 
 # Exchanges whose bare ticker is the Yahoo symbol (no suffix).
 _BARE_SYMBOL_EXCHANGES = {"NASDAQ", "NYSE", "CRYPTO"}
@@ -72,6 +75,44 @@ def _fetch_chart(yahoo_sym: str, timeout: float = 12.0) -> dict:
     return payload["chart"]["result"][0]["meta"]
 
 
+def fetch_history(
+    yahoo_sym: str, yahoo_range: str, interval: str = "1d", timeout: float = 12.0
+) -> list[Candle]:
+    """Fetch a daily OHLCV series from Yahoo, normalizing minor-unit prices."""
+    url = _HISTORY_URL.format(
+        sym=urllib.parse.quote(yahoo_sym), range=yahoo_range, interval=interval
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.load(resp)
+
+    result = payload["chart"]["result"][0]
+    meta = result.get("meta", {})
+    _, divisor = _MINOR_UNITS.get(meta.get("currency", ""), ("", 1.0))
+    timestamps = result.get("timestamp") or []
+    quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+    opens = quote.get("open") or []
+    highs = quote.get("high") or []
+    lows = quote.get("low") or []
+    closes = quote.get("close") or []
+    volumes = quote.get("volume") or []
+
+    candles: list[Candle] = []
+    for i, ts in enumerate(timestamps):
+        close = closes[i] if i < len(closes) else None
+        if close is None:
+            continue
+        op = opens[i] if i < len(opens) and opens[i] is not None else close
+        hi = highs[i] if i < len(highs) and highs[i] is not None else close
+        lo = lows[i] if i < len(lows) and lows[i] is not None else close
+        vol = volumes[i] if i < len(volumes) and volumes[i] is not None else 0
+        candles.append(
+            Candle(int(ts), op / divisor, hi / divisor, lo / divisor,
+                   close / divisor, float(vol))
+        )
+    return candles
+
+
 class YahooLiveProvider:
     """Background-refreshed live quotes for Yahoo-supported instruments."""
 
@@ -82,10 +123,12 @@ class YahooLiveProvider:
         refresh_seconds: float = 15.0,
         request_gap: float = 0.15,
         fetcher: Callable[[str], dict] = _fetch_chart,
+        history_fetcher: Callable[[str, str], list[Candle]] = fetch_history,
     ) -> None:
         self._refresh_seconds = refresh_seconds
         self._request_gap = request_gap
         self._fetch = fetcher
+        self._fetch_history = history_fetcher
 
         # uid -> yahoo symbol, only for supported instruments.
         self._live: dict[str, str] = {}
@@ -110,6 +153,17 @@ class YahooLiveProvider:
     def quote(self, uid: str) -> Quote | None:
         with self._lock:
             return self._cache.get(uid)
+
+    def history(self, uid: str, range_key: str) -> list[Candle]:
+        """Blocking fetch of *uid*'s history; ``[]`` if unsupported or failed."""
+        ysym = self._live.get(uid)
+        if ysym is None:
+            return []
+        yahoo_range = RANGES.get(range_key, RANGES["6M"])[0]
+        try:
+            return self._fetch_history(ysym, yahoo_range)
+        except Exception:
+            return []
 
     # -- background refresh ---------------------------------------------------
 
@@ -211,6 +265,13 @@ class HybridProvider:
 
     def tick(self) -> None:
         self._sim.tick()
+
+    def history(self, uid: str, range_key: str = "6M") -> list[Candle]:
+        if self._live.is_live(uid):
+            candles = self._live.history(uid, range_key)
+            if candles:
+                return candles
+        return self._sim.history(uid, range_key)
 
     def is_live(self, uid: str) -> bool:
         return self._live.is_live(uid) and self._live.quote(uid) is not None

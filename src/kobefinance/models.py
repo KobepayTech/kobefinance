@@ -26,6 +26,18 @@ class Instrument:
 
 
 @dataclass(frozen=True)
+class Candle:
+    """One OHLCV bar in a price history series."""
+
+    ts: int          # POSIX timestamp (seconds) at the bar's open
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+@dataclass(frozen=True)
 class Quote:
     """A point-in-time market quote for a single instrument."""
 

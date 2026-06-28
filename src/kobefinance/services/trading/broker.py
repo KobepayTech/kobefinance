@@ -21,6 +21,7 @@ class Side(str, Enum):
 class OrderType(str, Enum):
     MARKET = "market"
     LIMIT = "limit"
+    STOP = "stop"
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,17 @@ class OrderResult:
     order_id: str = ""
     filled_price: float = 0.0
     message: str = ""
+    working: bool = False  # True when accepted as a resting limit/stop order
+
+
+@dataclass
+class WorkingOrder:
+    order_id: str
+    symbol: str
+    side: Side
+    quantity: float
+    order_type: OrderType
+    price: float
 
 
 @dataclass

@@ -35,10 +35,22 @@ Working foundation:
   metrics (return, Sharpe, max drawdown, win rate). Pluggable LLM backends —
   **offline** Ollama / llama.cpp, optional Claude cloud — with a deterministic
   template fallback so it works with no model installed.
+- **Trading desk** — broker selector (paper default; MetaTrader 5 where
+  available), live account/positions, **market/limit/stop** orders with a
+  buying-power check and a working-orders book, and live-order confirmation.
+- **Portfolio + risk** — holdings with allocation weights and unrealized P&L,
+  plus portfolio risk (annualized volatility, Sharpe, max drawdown, and a
+  historical 1-day 95% VaR) from a weighted blend of holdings' return series.
+- **AI Chat** — a market analyst grounded in live quotes, backed by the
+  configured LLM (offline Ollama/llama.cpp or Claude), with a rule-based
+  offline fallback so it answers from live data with no model installed.
+- **Settings** — persists the LLM backend/model, paper starting cash &
+  leverage, and MT5 connection (the MT5 password is never written to disk).
 - **Trading layer** — a `Broker` abstraction with a safe **paper broker**
-  (default) and a **MetaTrader 5** adapter for live forex. *(MT5 is
-  Windows-only and needs the MT5 terminal + a broker account; live orders only
-  run there. Everything defaults to paper trading.)*
+  (default, with margin/buying-power checks and limit/stop orders) and a
+  **MetaTrader 5** adapter for live forex. *(MT5 is Windows-only and needs the
+  MT5 terminal + a broker account; live orders only run there. Everything
+  defaults to paper trading.)*
 
 ### Important caveats
 

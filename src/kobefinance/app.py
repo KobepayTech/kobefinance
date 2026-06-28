@@ -10,30 +10,38 @@ from PySide6.QtWidgets import QApplication
 from . import __app_name__
 from .services.live_data import HybridProvider
 from .services.market_data import MarketDataProvider, SimulatedProvider
+from .services.settings import Settings
+from .services.trading.paper_broker import PaperBroker
 from .ui.main_window import MainWindow
+from .ui.screens.ai_chat import AiChatScreen
 from .ui.screens.base import REGISTRY, ScreenSpec, register
 from .ui.screens.bot_designer import BotDesignerScreen
 from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.markets import MarketsScreen
 from .ui.screens.placeholder import PlaceholderScreen
+from .ui.screens.portfolio import PortfolioScreen
+from .ui.screens.settings_screen import SettingsScreen
 from .ui.screens.trading import TradingScreen
 
-# Sections shown in the sidebar that are not yet built. Each becomes a
-# placeholder screen until its real module lands on the roadmap.
+# Sidebar entries still on the roadmap (placeholders).
 ROADMAP_SCREENS: list[tuple[str, str]] = [
     ("watchlist", "Watchlist"),
     ("equity_research", "Equity Research"),
-    ("portfolio", "Portfolio"),
     ("news", "News"),
-    ("ai_chat", "AI Chat"),
-    ("settings", "Settings"),
 ]
 
 
-def register_screens(provider: MarketDataProvider) -> None:
+def register_screens(provider: MarketDataProvider, settings: Settings | None = None) -> None:
     """Populate the screen registry. Idempotent for repeated app launches."""
     REGISTRY.clear()
+    settings = settings or Settings()
+    # One paper broker shared by the Trading and Portfolio screens.
+    broker = PaperBroker(
+        provider,
+        starting_cash=settings.starting_cash(),
+        max_leverage=settings.max_leverage(),
+    )
     register(
         ScreenSpec(
             screen_id="dashboard",
@@ -62,7 +70,15 @@ def register_screens(provider: MarketDataProvider) -> None:
         ScreenSpec(
             screen_id="trading",
             title="Trading",
-            factory=lambda: TradingScreen(provider),
+            factory=lambda: TradingScreen(provider, broker, settings),
+            section="Trading",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="portfolio",
+            title="Portfolio",
+            factory=lambda: PortfolioScreen(provider, broker, settings),
             section="Trading",
         )
     )
@@ -72,6 +88,22 @@ def register_screens(provider: MarketDataProvider) -> None:
             title="Strategy Lab",
             factory=lambda: BotDesignerScreen(provider),
             section="Trading",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="ai_chat",
+            title="AI Chat",
+            factory=lambda: AiChatScreen(provider, settings),
+            section="Intelligence",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="settings",
+            title="Settings",
+            factory=lambda: SettingsScreen(provider, settings),
+            section="System",
         )
     )
     for screen_id, title in ROADMAP_SCREENS:

@@ -1,8 +1,9 @@
-"""Trading desk: account, live positions, and an order ticket.
+"""Trading desk: account, positions, working orders, and an order ticket.
 
-Defaults to the safe paper broker. The MetaTrader 5 broker can be selected
-where available (Windows + MT5 terminal); live orders require an explicit
-confirmation before they're sent.
+Defaults to the safe paper broker (shared with the Portfolio screen). The
+MetaTrader 5 broker can be selected where available; live orders require an
+explicit confirmation. Supports market, limit, and stop orders with a
+buying-power check.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...services.trading.broker import OrderRequest, Side
+from ...services.trading.broker import OrderRequest, OrderType, Side
 from ...services.trading.metatrader import MetaTraderBroker
 from ...services.trading.paper_broker import PaperBroker
 from ...services.universe import DASHBOARD_WATCHLIST
@@ -36,15 +37,15 @@ REFRESH_MS = 1500
 
 
 class TradingScreen(Screen):
-    """Account + positions + order entry against the selected broker."""
+    """Account + positions + working orders + order entry."""
 
     screen_id = "trading"
     title = "Trading"
 
-    def __init__(self, provider) -> None:
+    def __init__(self, provider, broker=None, settings=None) -> None:
         super().__init__()
         self._provider = provider
-        self._paper = PaperBroker(provider)
+        self._paper = broker or PaperBroker(provider)
         self._mt5 = MetaTraderBroker()
         self._broker = self._paper
 
@@ -73,7 +74,6 @@ class TradingScreen(Screen):
         mt_label = "MetaTrader 5" + ("" if self._mt5.available else " — unavailable here")
         self._broker_select.addItem(mt_label, "mt5")
         if not self._mt5.available:
-            # Disable the MT5 entry; keep it visible so users see the option.
             self._broker_select.model().item(1).setEnabled(False)
         self._broker_select.currentIndexChanged.connect(self._on_broker_changed)
 
@@ -82,7 +82,6 @@ class TradingScreen(Screen):
         self._account_lbl.setStyleSheet(
             f"color:{theme.text_secondary}; font-family:{theme.font_mono};"
         )
-
         row.addWidget(QLabel("Broker"))
         row.addWidget(self._broker_select)
         row.addSpacing(16)
@@ -93,9 +92,7 @@ class TradingScreen(Screen):
     def _build_positions_panel(self) -> Panel:
         panel = Panel("Open Positions")
         self._table = QTableWidget(0, 6)
-        self._table.setHorizontalHeaderLabels(
-            ["Symbol", "Side", "Qty", "Entry", "Last", "P&L"]
-        )
+        self._table.setHorizontalHeaderLabels(["Symbol", "Side", "Qty", "Entry", "Last", "P&L"])
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -105,11 +102,28 @@ class TradingScreen(Screen):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for c in range(1, 6):
             header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
-        panel.add(self._table, stretch=1)
+        panel.add(self._table, stretch=2)
 
         self._close_btn = QPushButton("Close selected position")
         self._close_btn.clicked.connect(self._close_selected)
         panel.add(self._close_btn)
+
+        self._working_lbl = QLabel("WORKING ORDERS")
+        self._working_lbl.setObjectName("PanelTitle")
+        panel.add(self._working_lbl)
+        self._working = QTableWidget(0, 5)
+        self._working.setHorizontalHeaderLabels(["ID", "Symbol", "Type", "Qty", "Price"])
+        self._working.verticalHeader().setVisible(False)
+        self._working.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._working.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._working.setShowGrid(False)
+        self._working.setMaximumHeight(140)
+        wheader = self._working.horizontalHeader()
+        wheader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        panel.add(self._working)
+        self._cancel_btn = QPushButton("Cancel selected order")
+        self._cancel_btn.clicked.connect(self._cancel_selected)
+        panel.add(self._cancel_btn)
         return panel
 
     def _build_ticket_panel(self) -> Panel:
@@ -125,12 +139,26 @@ class TradingScreen(Screen):
         panel.add(QLabel("Symbol"))
         panel.add(self._symbol)
 
+        self._otype = QComboBox()
+        for label, value in (("Market", OrderType.MARKET), ("Limit", OrderType.LIMIT), ("Stop", OrderType.STOP)):
+            self._otype.addItem(label, value)
+        self._otype.currentIndexChanged.connect(self._sync_price_enabled)
+        panel.add(QLabel("Order type"))
+        panel.add(self._otype)
+
         self._qty = QDoubleSpinBox()
         self._qty.setRange(0.01, 1_000_000.0)
         self._qty.setDecimals(2)
         self._qty.setValue(1000.0)
         panel.add(QLabel("Quantity"))
         panel.add(self._qty)
+
+        self._price = QDoubleSpinBox()
+        self._price.setRange(0.0, 10_000_000.0)
+        self._price.setDecimals(4)
+        self._price.setEnabled(False)
+        panel.add(QLabel("Trigger / limit price"))
+        panel.add(self._price)
 
         buttons = QWidget()
         brow = QHBoxLayout(buttons)
@@ -156,6 +184,9 @@ class TradingScreen(Screen):
         panel.add_stretch()
         return panel
 
+    def _sync_price_enabled(self) -> None:
+        self._price.setEnabled(OrderType(self._otype.currentData()) is not OrderType.MARKET)
+
     # -- broker selection -----------------------------------------------------
 
     def _on_broker_changed(self, _index: int) -> None:
@@ -176,40 +207,51 @@ class TradingScreen(Screen):
 
     def _place(self, side: Side) -> None:
         symbol = self._symbol.currentData()
-        qty = self._qty.value()
         if not symbol:
             return
-        # Live orders are real money — confirm first.
+        qty = self._qty.value()
+        otype = OrderType(self._otype.currentData())  # combo may store the raw str
+        price = self._price.value() if otype is not OrderType.MARKET else None
+
         if self._broker.is_live:
             confirm = QMessageBox.question(
                 self,
                 "Confirm live order",
-                f"Send a LIVE {side.value.upper()} order for {qty} {symbol} "
-                f"via {self._broker.name}?\n\nThis places a real trade.",
+                f"Send a LIVE {otype.value} {side.value.upper()} order for {qty} "
+                f"{symbol} via {self._broker.name}?\n\nThis places a real trade.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if confirm != QMessageBox.StandardButton.Yes:
                 return
-        result = self._broker.place_order(OrderRequest(symbol=symbol, side=side, quantity=qty))
-        verb = "LIVE" if self._broker.is_live else "Paper"
-        if result.ok:
-            self._status.setText(
-                f"{verb} {side.value} {qty} {symbol} filled @ {result.filled_price:g}"
-            )
+
+        result = self._broker.place_order(
+            OrderRequest(symbol=symbol, side=side, quantity=qty, order_type=otype, limit_price=price)
+        )
+        venue = "LIVE" if self._broker.is_live else "Paper"
+        if result.ok and result.working:
+            self._status.setText(f"{venue} {otype.value} {side.value} {qty} {symbol} resting @ {price:g}")
+        elif result.ok:
+            self._status.setText(f"{venue} {side.value} {qty} {symbol} filled @ {result.filled_price:g}")
         else:
             self._status.setText(f"Rejected: {result.message}")
         self._refresh()
 
     def _close_selected(self) -> None:
         row = self._table.currentRow()
-        if row < 0:
+        if row < 0 or self._table.item(row, 0) is None:
             return
-        item = self._table.item(row, 0)
-        if item is None:
-            return
-        result = self._broker.close_position(item.text())
+        result = self._broker.close_position(self._table.item(row, 0).text())
         self._status.setText(result.message)
+        self._refresh()
+
+    def _cancel_selected(self) -> None:
+        row = self._working.currentRow()
+        if row < 0 or self._working.item(row, 0) is None:
+            return
+        if hasattr(self._broker, "cancel_order"):
+            result = self._broker.cancel_order(self._working.item(row, 0).text())
+            self._status.setText(result.message)
         self._refresh()
 
     # -- refresh --------------------------------------------------------------
@@ -217,13 +259,19 @@ class TradingScreen(Screen):
     def _refresh(self) -> None:
         if hasattr(self._provider, "tick"):
             self._provider.tick()
+        if hasattr(self._broker, "poll"):
+            self._broker.poll()  # fill any triggered working orders
+
         theme = ACTIVE_THEME
         account = self._broker.account()
         tag = "● LIVE" if self._broker.is_live else "○ PAPER"
+        bp = ""
+        if hasattr(self._broker, "buying_power"):
+            bp = f" &nbsp; Buying power {fmt_money(self._broker.buying_power(), account.currency)}"
         self._account_lbl.setText(
             f"<b>{self._broker.name}</b> {tag} &nbsp;|&nbsp; "
             f"Balance {fmt_money(account.balance, account.currency)} &nbsp; "
-            f"Equity {fmt_money(account.equity, account.currency)}"
+            f"Equity {fmt_money(account.equity, account.currency)}{bp}"
         )
 
         positions = account.positions
@@ -247,7 +295,13 @@ class TradingScreen(Screen):
                     item.setForeground(QColor(color))
                 self._table.setItem(r, c, item)
 
-    # -- lifecycle ------------------------------------------------------------
+        working = self._broker.working_orders() if hasattr(self._broker, "working_orders") else []
+        self._working.setRowCount(len(working))
+        for r, wo in enumerate(working):
+            for c, text in enumerate(
+                [wo.order_id, wo.symbol, f"{wo.order_type.value} {wo.side.value}", f"{wo.quantity:g}", f"{wo.price:g}"]
+            ):
+                self._working.setItem(r, c, QTableWidgetItem(text))
 
     def on_show(self) -> None:
         self._refresh()

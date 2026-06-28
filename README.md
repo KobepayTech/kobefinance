@@ -29,6 +29,27 @@ Working foundation:
 - **Forex & crypto** — spot FX (majors + African pairs like USD/ZAR, USD/NGN,
   USD/KES) and major cryptocurrencies, as first-class asset classes with
   rate-aware formatting and live Yahoo quotes/history (`EURUSD=X`, `BTC-USD`).
+- **Strategy Lab (AI bot designer)** — describe a strategy in plain language;
+  it generates readable **Python** (for the built-in backtester) and **MQL5**
+  (a MetaTrader Expert Advisor) and runs a backtest with equity curve and
+  metrics (return, Sharpe, max drawdown, win rate). Pluggable LLM backends —
+  **offline** Ollama / llama.cpp, optional Claude cloud — with a deterministic
+  template fallback so it works with no model installed.
+- **Trading layer** — a `Broker` abstraction with a safe **paper broker**
+  (default) and a **MetaTrader 5** adapter for live forex. *(MT5 is
+  Windows-only and needs the MT5 terminal + a broker account; live orders only
+  run there. Everything defaults to paper trading.)*
+
+### Important caveats
+
+- **"Offline LLM" = a local model runtime, not a model we trained.** Run a GGUF
+  model via Ollama or llama.cpp on your machine; the terminal talks to it. With
+  no model present, a deterministic template generator keeps the feature usable.
+- **The backtest never executes model-generated code.** It runs a *vetted*
+  strategy parsed from your description; the LLM only authors code you read and
+  export. This is a deliberate safety boundary.
+- **Live trading is real money.** The MT5 adapter is gated, defaults to paper,
+  and is intended to be used behind explicit per-order confirmation.
 - **Global + comprehensive African coverage** — 30+ exchanges (all of Africa
   plus Nasdaq/NYSE/LSE/crypto), each with country, currency, MIC and
   timezone. Quotes are currency-aware (R, ₦, KSh, ₵, ₨, E£, CFA, … with ISO

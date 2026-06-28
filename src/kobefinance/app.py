@@ -12,6 +12,7 @@ from .services.live_data import HybridProvider
 from .services.market_data import MarketDataProvider, SimulatedProvider
 from .ui.main_window import MainWindow
 from .ui.screens.base import REGISTRY, ScreenSpec, register
+from .ui.screens.bot_designer import BotDesignerScreen
 from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.markets import MarketsScreen
@@ -54,6 +55,14 @@ def register_screens(provider: MarketDataProvider) -> None:
             title="Charts",
             factory=lambda: ChartsScreen(provider),
             section="General",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="bots",
+            title="Strategy Lab",
+            factory=lambda: BotDesignerScreen(provider),
+            section="Trading",
         )
     )
     for screen_id, title in ROADMAP_SCREENS:

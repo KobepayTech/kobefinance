@@ -1,0 +1,88 @@
+"""Tests for the live-data helpers and the hybrid provider (no network)."""
+
+from __future__ import annotations
+
+from kobefinance.models import Instrument
+from kobefinance.services.live_data import (
+    HybridProvider,
+    YahooLiveProvider,
+    normalize_minor,
+    yahoo_symbol,
+)
+from kobefinance.services.market_data import SimulatedProvider
+
+
+def test_yahoo_symbol_us_is_bare():
+    assert yahoo_symbol(Instrument("AAPL", "Apple", "NASDAQ", "USD", 1.0)) == "AAPL"
+
+
+def test_yahoo_symbol_jse_suffix():
+    assert yahoo_symbol(Instrument("NPN", "Naspers", "JSE", "ZAR", 1.0)) == "NPN.JO"
+
+
+def test_yahoo_symbol_lse_suffix():
+    assert yahoo_symbol(Instrument("SHEL", "Shell", "LSE", "GBP", 1.0)) == "SHEL.L"
+
+
+def test_yahoo_symbol_crypto_is_bare():
+    assert yahoo_symbol(Instrument("BTC-USD", "Bitcoin", "CRYPTO", "USD", 1.0)) == "BTC-USD"
+
+
+def test_yahoo_symbol_unsupported_returns_none():
+    # NGX has no Yahoo suffix -> not supported.
+    assert yahoo_symbol(Instrument("MTNN", "MTN Nigeria", "NGX", "NGN", 1.0)) is None
+
+
+def test_normalize_minor_cents_and_pence():
+    assert normalize_minor(79953.0, 80000.0, "ZAc") == (799.53, 800.0, "ZAR")
+    assert normalize_minor(2898.0, 2900.0, "GBp") == (28.98, 29.0, "GBP")
+
+
+def test_normalize_minor_passthrough():
+    assert normalize_minor(100.0, 99.0, "USD") == (100.0, 99.0, "USD")
+
+
+def _fake_meta(sym: str) -> dict:
+    return {"regularMarketPrice": 200.0, "chartPreviousClose": 190.0, "currency": "USD"}
+
+
+def test_live_provider_refresh_with_injected_fetcher():
+    universe = [
+        Instrument("AAPL", "Apple", "NASDAQ", "USD", 100.0),
+        Instrument("MTNN", "MTN Nigeria", "NGX", "NGN", 50.0),  # unsupported
+    ]
+    live = YahooLiveProvider(universe, fetcher=_fake_meta, request_gap=0)
+    assert live.live_uids() == ["AAPL.NASDAQ"]  # only supported one
+    n = live.refresh_once()
+    assert n == 1
+    q = live.quote("AAPL.NASDAQ")
+    assert q is not None and q.price == 200.0 and q.change == 10.0
+    assert live.quote("MTNN.NGX") is None
+
+
+def test_hybrid_prefers_live_then_falls_back():
+    sim = SimulatedProvider(
+        [
+            Instrument("AAPL", "Apple", "NASDAQ", "USD", 100.0),
+            Instrument("MTNN", "MTN Nigeria", "NGX", "NGN", 50.0),
+        ],
+        seed=1,
+    )
+    live = YahooLiveProvider(sim.instruments(), fetcher=_fake_meta, request_gap=0)
+    hybrid = HybridProvider(simulated=sim, live=live)
+
+    # Before any live refresh, both come from the simulator.
+    assert not hybrid.is_live("AAPL.NASDAQ")
+    assert hybrid.quote("MTNN.NGX") is not None  # simulated
+
+    live.refresh_once()
+    assert hybrid.is_live("AAPL.NASDAQ")
+    assert hybrid.quote("AAPL.NASDAQ").price == 200.0  # live overrides sim
+    # NGX never live -> still simulated.
+    assert not hybrid.is_live("MTNN.NGX")
+
+
+def test_hybrid_delegates_universe():
+    hybrid = HybridProvider()
+    assert len(hybrid.symbols()) > 50
+    assert hybrid.instruments_for("JSE")

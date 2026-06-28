@@ -14,20 +14,25 @@ AI-assisted analysis.
 
 ## Status
 
-Early foundation — first vertical slice complete:
+Working foundation:
 
 - **App shell** — command bar, scrolling ticker tape, navigation sidebar,
   status bar, and a lazy screen router.
-- **Dashboard** — live market-tile grid + "Market Pulse" movers panel,
-  refreshed on a timer.
-- **Data layer** — a `MarketDataProvider` interface with an offline
-  `SimulatedProvider` (deterministic random walk), so the app runs with no
-  network or API keys. Live REST/WebSocket providers slot in behind the same
-  interface.
+- **Dashboard** — market-tile grid + "Market Pulse" movers panel, refreshed
+  on a timer, mixing global and African listings in local currencies.
+- **Markets** — browse every exchange grouped by region; live listings table
+  with a per-row live/simulated source indicator.
+- **Global + comprehensive African coverage** — 30+ exchanges (all of Africa
+  plus Nasdaq/NYSE/LSE/crypto), each with country, currency, MIC and
+  timezone. Quotes are currency-aware (R, ₦, KSh, ₵, ₨, E£, CFA, … with ISO
+  fallback).
+- **Live data** — `HybridProvider` serves **real Yahoo Finance** quotes for
+  US, JSE (`.JO`), LSE (`.L`) and crypto on a background thread, and falls
+  back to a deterministic `SimulatedProvider` for exchanges with no free feed
+  (NGX, NSE, EGX, …). Runs fully offline with `--simulate`.
 
-Sidebar entries beyond the dashboard (Watchlist, Markets, Equity Research,
-Portfolio, News, AI Chat, Settings) are registered as placeholders on the
-roadmap.
+Sidebar entries not yet built (Watchlist, Equity Research, Portfolio, News,
+AI Chat, Settings) are registered as placeholders on the roadmap.
 
 ---
 
@@ -67,7 +72,8 @@ Requires Python 3.10+ and a desktop environment (Qt needs a display).
 
 ```bash
 pip install -e .
-kobefinance
+kobefinance              # live (Yahoo) where available + simulated elsewhere
+kobefinance --simulate   # fully offline, no network
 # or:
 python -m kobefinance
 ```
@@ -85,8 +91,11 @@ pytest
 
 ## Roadmap
 
-1. Live data providers (Yahoo/Stooq/FRED) behind `MarketDataProvider`.
-2. Watchlist screen with editable symbols + price charts.
-3. Portfolio tracking and risk metrics (returns, Sharpe, drawdown, VaR).
-4. News aggregation and an AI chat/analysis screen.
-5. Persisted layout and user settings.
+1. ~~Live data provider (Yahoo) behind `MarketDataProvider`.~~ ✅
+2. More feeds for African exchanges with no free Yahoo coverage (official/paid
+   APIs for NGX, NSE, EGX, …).
+3. Price/volume charts with technical indicators.
+4. Watchlist screen with editable symbols.
+5. Portfolio tracking and risk metrics (returns, Sharpe, drawdown, VaR).
+6. News aggregation and an AI chat/analysis screen (Claude-backed).
+7. Persisted layout and user settings.

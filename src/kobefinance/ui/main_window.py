@@ -28,7 +28,12 @@ from .ticker_bar import TickerBar
 class MainWindow(QMainWindow):
     """Top-level window hosting the whole terminal."""
 
-    def __init__(self, provider: MarketDataProvider | None = None) -> None:
+    def __init__(
+        self,
+        provider: MarketDataProvider | None = None,
+        *,
+        source_label: str = "SIMULATED FEED",
+    ) -> None:
         super().__init__()
         self._provider = provider or SimulatedProvider()
         self._screens: dict[str, Screen] = {}
@@ -62,7 +67,7 @@ class MainWindow(QMainWindow):
         body.addWidget(self._stack, stretch=1)
         outer.addLayout(body, stretch=1)
 
-        self._status = StatusBar("SIMULATED FEED")
+        self._status = StatusBar(source_label)
         outer.addWidget(self._status)
 
         self.setCentralWidget(central)

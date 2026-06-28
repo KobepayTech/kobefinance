@@ -96,8 +96,10 @@ class MarketsScreen(Screen):
         panel.add(self._heading)
         panel.add(self._subheading)
 
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["Symbol", "Company", "Last", "Chg %"])
+        self._table = QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(
+            ["Symbol", "Company", "Last", "Chg %", "Src"]
+        )
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -108,6 +110,7 @@ class MarketsScreen(Screen):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         panel.add(self._table, stretch=1)
         return panel
 
@@ -150,6 +153,7 @@ class MarketsScreen(Screen):
             self._set_text(row, 1, inst.name)
             self._set_text(row, 2, "", align_right=True)
             self._set_text(row, 3, "", align_right=True)
+            self._set_text(row, 4, "", align_right=True)
         self._refresh()
 
     # -- refresh --------------------------------------------------------------
@@ -182,6 +186,7 @@ class MarketsScreen(Screen):
         if hasattr(self._provider, "tick"):
             self._provider.tick()
         theme = ACTIVE_THEME
+        is_live = getattr(self._provider, "is_live", None)
         for row, uid in enumerate(self._row_uids):
             q = self._provider.quote(uid)
             if q is None:
@@ -193,6 +198,14 @@ class MarketsScreen(Screen):
                 f"{arrow(q.change)} {fmt_pct(q.change_pct)}",
                 align_right=True,
                 color=theme.signed_color(q.change),
+            )
+            live = bool(is_live and is_live(uid))
+            self._set_text(
+                row,
+                4,
+                "● live" if live else "sim",
+                align_right=True,
+                color=theme.positive if live else theme.text_tertiary,
             )
 
     # -- lifecycle ------------------------------------------------------------

@@ -49,8 +49,10 @@ def yahoo_symbol(inst: Instrument) -> str | None:
     exchange = EXCHANGE_BY_CODE.get(inst.exchange)
     if exchange is None:
         return None
+    if inst.kind == "fx":
+        return inst.symbol + "=X"  # Yahoo spot-FX format, e.g. EURUSD=X
     if inst.exchange in _BARE_SYMBOL_EXCHANGES:
-        return inst.symbol
+        return inst.symbol  # crypto/US tickers are already Yahoo symbols
     if exchange.yahoo_suffix:
         return inst.symbol + exchange.yahoo_suffix
     return None
@@ -183,10 +185,11 @@ class YahooLiveProvider:
                 quote = Quote(
                     symbol=inst.symbol,
                     name=inst.name,
-                    price=round(price, 2),
-                    prev_close=round(prev, 2),
+                    price=round(price, 4),
+                    prev_close=round(prev, 4),
                     currency=currency,
                     exchange=inst.exchange,
+                    kind=inst.kind,
                 )
                 with self._lock:
                     self._cache[uid] = quote

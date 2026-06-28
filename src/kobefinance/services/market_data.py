@@ -142,10 +142,11 @@ class SimulatedProvider:
         return Quote(
             symbol=inst.symbol,
             name=inst.name,
-            price=round(self._price[uid], 2),
-            prev_close=round(inst.seed_price, 2),
+            price=round(self._price[uid], 4),
+            prev_close=round(inst.seed_price, 4),
             currency=inst.currency,
             exchange=inst.exchange,
+            kind=inst.kind,
         )
 
     def quotes(self, uids: list[str]) -> list[Quote]:

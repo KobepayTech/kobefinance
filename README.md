@@ -26,6 +26,9 @@ Working foundation:
   ranges, fetched off the UI thread; live history where available, synthetic
   history (anchored to the current price) elsewhere. Type a ticker in the
   command bar to jump straight to its chart.
+- **Forex & crypto** — spot FX (majors + African pairs like USD/ZAR, USD/NGN,
+  USD/KES) and major cryptocurrencies, as first-class asset classes with
+  rate-aware formatting and live Yahoo quotes/history (`EURUSD=X`, `BTC-USD`).
 - **Global + comprehensive African coverage** — 30+ exchanges (all of Africa
   plus Nasdaq/NYSE/LSE/crypto), each with country, currency, MIC and
   timezone. Quotes are currency-aware (R, ₦, KSh, ₵, ₨, E£, CFA, … with ISO

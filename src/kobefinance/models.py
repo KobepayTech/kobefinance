@@ -19,6 +19,7 @@ class Instrument:
     exchange: str  # exchange code, e.g. "JSE"
     currency: str  # ISO 4217 code, e.g. "ZAR"
     seed_price: float
+    kind: str = "equity"  # "equity" | "fx" | "crypto"
 
     @property
     def uid(self) -> str:
@@ -47,6 +48,7 @@ class Quote:
     prev_close: float
     currency: str = "USD"
     exchange: str = ""
+    kind: str = "equity"  # "equity" | "fx" | "crypto"
 
     @property
     def uid(self) -> str:

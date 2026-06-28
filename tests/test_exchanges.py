@@ -14,7 +14,7 @@ from kobefinance.services.universe import (
     LISTINGS,
     build_universe,
 )
-from kobefinance.ui.formatting import fmt_money
+from kobefinance.ui.formatting import fmt_instrument_price, fmt_money, fmt_rate
 
 
 def test_exchange_codes_unique():
@@ -41,10 +41,25 @@ def test_listings_reference_known_exchanges():
         assert code in EXCHANGE_BY_CODE, f"listing for unknown exchange {code}"
 
 
-def test_universe_currency_matches_exchange():
-    universe = build_universe()
-    for inst in universe:
-        assert inst.currency == EXCHANGE_BY_CODE[inst.exchange].currency
+def test_equity_currency_matches_exchange():
+    for inst in build_universe():
+        if inst.kind == "equity":
+            assert inst.currency == EXCHANGE_BY_CODE[inst.exchange].currency
+
+
+def test_fx_pairs_quote_in_second_currency():
+    by_uid = {i.uid: i for i in build_universe()}
+    assert by_uid["EURUSD.FOREX"].kind == "fx"
+    assert by_uid["EURUSD.FOREX"].currency == "USD"
+    assert by_uid["USDZAR.FOREX"].currency == "ZAR"
+    assert by_uid["USDNGN.FOREX"].currency == "NGN"
+
+
+def test_crypto_quotes_in_usd():
+    by_uid = {i.uid: i for i in build_universe()}
+    btc = by_uid["BTC-USD.CRYPTO"]
+    assert btc.kind == "crypto"
+    assert btc.currency == "USD"
 
 
 def test_universe_uids_unique():
@@ -65,3 +80,16 @@ def test_fmt_money_known_symbol():
 
 def test_fmt_money_unknown_currency_falls_back_to_code():
     assert fmt_money(1000.0, "ETB") == "1,000.00 ETB"
+
+
+def test_fmt_rate_precision_scales():
+    assert fmt_rate(1.085) == "1.08500"      # EURUSD-style
+    assert fmt_rate(18.05) == "18.0500"      # USDZAR-style
+    assert fmt_rate(157.2) == "157.20"       # USDJPY-style
+    assert fmt_rate(1480.0) == "1,480.00"    # USDNGN-style
+
+
+def test_fmt_instrument_price_by_kind():
+    assert fmt_instrument_price(1.085, "USD", "fx") == "1.08500"
+    assert fmt_instrument_price(96250.0, "USD", "crypto") == "$96,250.00"
+    assert fmt_instrument_price(228.5, "USD", "equity") == "$228.50"

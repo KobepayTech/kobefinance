@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 from ..services.market_data import MarketDataProvider
 from ..services.universe import DASHBOARD_WATCHLIST
 from ..theme import ACTIVE_THEME
-from .formatting import arrow, fmt_money, fmt_pct
+from .formatting import arrow, fmt_instrument_price, fmt_pct
 
 SCROLL_MS = 30
 REFRESH_MS = 2000
@@ -70,7 +70,7 @@ class TickerBar(QFrame):
             self._cells[quote.uid].setText(
                 f"<span style='color:{theme.text_secondary}'>{quote.symbol}</span> "
                 f"<span style='color:{theme.text_primary};font-family:{theme.font_mono}'>"
-                f"{fmt_money(quote.price, quote.currency)}</span> "
+                f"{fmt_instrument_price(quote.price, quote.currency, quote.kind)}</span> "
                 f"<span style='color:{color}'>{arrow(quote.change)} {fmt_pct(quote.change_pct)}</span>"
             )
         self._track.adjustSize()

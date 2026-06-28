@@ -88,6 +88,13 @@ def test_hybrid_delegates_universe():
     assert hybrid.instruments_for("JSE")
 
 
+def test_yahoo_symbol_fx_and_crypto():
+    fx = Instrument("EURUSD", "Euro / USD", "FOREX", "USD", 1.085, kind="fx")
+    crypto = Instrument("BTC-USD", "Bitcoin", "CRYPTO", "USD", 96000.0, kind="crypto")
+    assert yahoo_symbol(fx) == "EURUSD=X"
+    assert yahoo_symbol(crypto) == "BTC-USD"
+
+
 def _fake_history(yahoo_sym: str, yahoo_range: str) -> list[Candle]:
     return [Candle(1000 + i, 10, 11, 9, 10 + i, 100) for i in range(5)]
 

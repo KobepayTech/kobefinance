@@ -185,18 +185,62 @@ LISTINGS: dict[str, list[tuple[str, str, float]]] = {
         ("BTC-USD", "Bitcoin", 96250.00),
         ("ETH-USD", "Ethereum", 3380.00),
         ("SOL-USD", "Solana", 188.00),
+        ("BNB-USD", "BNB", 695.00),
+        ("XRP-USD", "XRP", 2.18),
+        ("ADA-USD", "Cardano", 0.92),
+        ("DOGE-USD", "Dogecoin", 0.38),
+    ],
+
+    # ---- Foreign exchange (spot FX): majors + African pairs ----
+    "FOREX": [
+        # Majors
+        ("EURUSD", "Euro / US Dollar", 1.08500),
+        ("GBPUSD", "British Pound / US Dollar", 1.27200),
+        ("USDJPY", "US Dollar / Japanese Yen", 157.2000),
+        ("USDCHF", "US Dollar / Swiss Franc", 0.89500),
+        ("AUDUSD", "Australian Dollar / US Dollar", 0.66300),
+        ("USDCAD", "US Dollar / Canadian Dollar", 1.36800),
+        ("NZDUSD", "New Zealand Dollar / US Dollar", 0.61200),
+        # African currency pairs (the terminal's focus)
+        ("USDZAR", "US Dollar / South African Rand", 18.0500),
+        ("USDNGN", "US Dollar / Nigerian Naira", 1480.0000),
+        ("USDKES", "US Dollar / Kenyan Shilling", 129.5000),
+        ("USDEGP", "US Dollar / Egyptian Pound", 48.2000),
+        ("USDGHS", "US Dollar / Ghanaian Cedi", 14.8000),
+        ("USDMAD", "US Dollar / Moroccan Dirham", 9.95000),
+        ("USDTZS", "US Dollar / Tanzanian Shilling", 2580.0000),
+        ("USDUGX", "US Dollar / Ugandan Shilling", 3720.0000),
+        ("EURZAR", "Euro / South African Rand", 19.6000),
+        ("GBPZAR", "British Pound / South African Rand", 22.9500),
     ],
 }
 
 # Curated cross-region set shown on the dashboard (a uid is "SYMBOL.EXCHANGE").
 DASHBOARD_WATCHLIST: list[str] = [
     "AAPL.NASDAQ", "MSFT.NASDAQ", "NVDA.NASDAQ",
-    "NPN.JSE", "FSR.JSE", "MTN.JSE",
-    "DANGCEM.NGX", "MTNN.NGX", "GTCO.NGX",
-    "SCOM.NSE", "EQTY.NSE",
-    "COMI.EGX", "IAM.CSE", "SNTS.BRVM", "MTNGH.GSE", "MCBG.SEM",
-    "BTC-USD.CRYPTO", "ETH-USD.CRYPTO",
+    "NPN.JSE", "MTN.JSE",
+    "DANGCEM.NGX", "MTNN.NGX",
+    "SCOM.NSE", "COMI.EGX", "SNTS.BRVM",
+    "EURUSD.FOREX", "GBPUSD.FOREX", "USDJPY.FOREX",
+    "USDZAR.FOREX", "USDNGN.FOREX",
+    "BTC-USD.CRYPTO", "ETH-USD.CRYPTO", "SOL-USD.CRYPTO",
 ]
+
+# Asset class per exchange, for exchanges that aren't plain equities.
+_KIND_BY_EXCHANGE: dict[str, str] = {"FOREX": "fx", "CRYPTO": "crypto"}
+
+
+def _kind_and_currency(code: str, symbol: str, exchange_currency: str) -> tuple[str, str]:
+    """Derive (kind, quote currency) for a listing on exchange *code*."""
+    kind = _KIND_BY_EXCHANGE.get(code, "equity")
+    if kind == "fx":
+        # A 6-letter pair BASEQUOTE quotes in the second currency.
+        currency = symbol[3:6] if len(symbol) >= 6 else "USD"
+    elif kind == "crypto":
+        currency = "USD"
+    else:
+        currency = exchange_currency
+    return kind, currency
 
 
 def build_universe() -> list[Instrument]:
@@ -207,13 +251,15 @@ def build_universe() -> list[Instrument]:
         if exchange is None:
             continue
         for symbol, name, seed in rows:
+            kind, currency = _kind_and_currency(code, symbol, exchange.currency)
             out.append(
                 Instrument(
                     symbol=symbol,
                     name=name,
                     exchange=code,
-                    currency=exchange.currency,
+                    currency=currency,
                     seed_price=seed,
+                    kind=kind,
                 )
             )
     return out

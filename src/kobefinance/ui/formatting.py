@@ -47,6 +47,22 @@ def fmt_money(value: float, currency: str) -> str:
     return f"{symbol}{amount}"
 
 
+def fmt_rate(value: float) -> str:
+    """Format an FX rate with precision scaled to its magnitude."""
+    if value >= 100:
+        return f"{value:,.2f}"   # e.g. USDJPY 157.20, USDNGN 1,480.00
+    if value >= 10:
+        return f"{value:,.4f}"   # e.g. USDZAR 18.0500
+    return f"{value:,.5f}"       # e.g. EURUSD 1.08500
+
+
+def fmt_instrument_price(value: float, currency: str, kind: str) -> str:
+    """Format a price appropriately for its asset class."""
+    if kind == "fx":
+        return fmt_rate(value)
+    return fmt_money(value, currency)
+
+
 def fmt_change(value: float) -> str:
     """Format an absolute change with an explicit sign."""
     return f"{value:+,.2f}"

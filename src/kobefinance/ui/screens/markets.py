@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from ...services.exchanges import EXCHANGE_BY_CODE, REGIONS, exchanges_in_region
 from ...services.market_data import MarketDataProvider
 from ...theme import ACTIVE_THEME
-from ..formatting import arrow, fmt_money, fmt_pct
+from ..formatting import arrow, fmt_instrument_price, fmt_pct
 from ..widgets.panel import Panel
 from .base import Screen
 
@@ -191,7 +191,9 @@ class MarketsScreen(Screen):
             q = self._provider.quote(uid)
             if q is None:
                 continue
-            self._set_text(row, 2, fmt_money(q.price, q.currency), align_right=True)
+            self._set_text(
+                row, 2, fmt_instrument_price(q.price, q.currency, q.kind), align_right=True
+            )
             self._set_text(
                 row,
                 3,

@@ -17,6 +17,7 @@ from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.markets import MarketsScreen
 from .ui.screens.placeholder import PlaceholderScreen
+from .ui.screens.trading import TradingScreen
 
 # Sections shown in the sidebar that are not yet built. Each becomes a
 # placeholder screen until its real module lands on the roadmap.
@@ -55,6 +56,14 @@ def register_screens(provider: MarketDataProvider) -> None:
             title="Charts",
             factory=lambda: ChartsScreen(provider),
             section="General",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="trading",
+            title="Trading",
+            factory=lambda: TradingScreen(provider),
+            section="Trading",
         )
     )
     register(

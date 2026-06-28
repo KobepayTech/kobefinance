@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...services.market_data import MarketDataProvider
+from ...services.universe import DASHBOARD_WATCHLIST
 from ...theme import ACTIVE_THEME
 from ..formatting import arrow, fmt_pct
 from ..widgets.market_tile import MarketTile
@@ -33,9 +34,16 @@ class DashboardScreen(Screen):
     screen_id = "dashboard"
     title = "Dashboard"
 
-    def __init__(self, provider: MarketDataProvider) -> None:
+    def __init__(
+        self, provider: MarketDataProvider, watchlist: list[str] | None = None
+    ) -> None:
         super().__init__()
         self._provider = provider
+        # Keep only uids the provider actually knows about.
+        known = set(provider.symbols())
+        self._watchlist = [
+            uid for uid in (watchlist or DASHBOARD_WATCHLIST) if uid in known
+        ]
         self._tiles: dict[str, MarketTile] = {}
 
         self._timer = QTimer(self)
@@ -81,9 +89,9 @@ class DashboardScreen(Screen):
         self._grid.setHorizontalSpacing(10)
         self._grid.setVerticalSpacing(10)
 
-        for index, quote in enumerate(self._provider.quotes(self._provider.symbols())):
+        for index, quote in enumerate(self._provider.quotes(self._watchlist)):
             tile = MarketTile(quote)
-            self._tiles[quote.symbol] = tile
+            self._tiles[quote.uid] = tile
             self._grid.addWidget(tile, index // TILE_COLUMNS, index % TILE_COLUMNS)
 
         panel.add(host)
@@ -108,7 +116,7 @@ class DashboardScreen(Screen):
 
         quotes = self._provider.quotes(list(self._tiles))
         for quote in quotes:
-            self._tiles[quote.symbol].update_quote(quote)
+            self._tiles[quote.uid].update_quote(quote)
 
         self._update_pulse(quotes)
 

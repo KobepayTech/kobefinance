@@ -6,8 +6,9 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 from ..services.market_data import MarketDataProvider
+from ..services.universe import DASHBOARD_WATCHLIST
 from ..theme import ACTIVE_THEME
-from .formatting import arrow, fmt_pct, fmt_price
+from .formatting import arrow, fmt_money, fmt_pct
 
 SCROLL_MS = 30
 REFRESH_MS = 2000
@@ -17,7 +18,12 @@ STEP_PX = 1
 class TickerBar(QFrame):
     """Marquee of symbol/price/change cells that scrolls right-to-left."""
 
-    def __init__(self, provider: MarketDataProvider, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        provider: MarketDataProvider,
+        uids: list[str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("TickerBar")
         self.setFixedHeight(30)
@@ -29,10 +35,12 @@ class TickerBar(QFrame):
         self._row.setSpacing(22)
         self._cells: dict[str, QLabel] = {}
 
-        for sym in provider.symbols():
+        known = set(provider.symbols())
+        chosen = [u for u in (uids or DASHBOARD_WATCHLIST) if u in known]
+        for uid in chosen:
             cell = QLabel()
             cell.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-            self._cells[sym] = cell
+            self._cells[uid] = cell
             self._row.addWidget(cell)
         self._track.adjustSize()
 
@@ -59,10 +67,10 @@ class TickerBar(QFrame):
         theme = ACTIVE_THEME
         for quote in self._provider.quotes(list(self._cells)):
             color = theme.signed_color(quote.change)
-            self._cells[quote.symbol].setText(
+            self._cells[quote.uid].setText(
                 f"<span style='color:{theme.text_secondary}'>{quote.symbol}</span> "
                 f"<span style='color:{theme.text_primary};font-family:{theme.font_mono}'>"
-                f"{fmt_price(quote.price)}</span> "
+                f"{fmt_money(quote.price, quote.currency)}</span> "
                 f"<span style='color:{color}'>{arrow(quote.change)} {fmt_pct(quote.change_pct)}</span>"
             )
         self._track.adjustSize()

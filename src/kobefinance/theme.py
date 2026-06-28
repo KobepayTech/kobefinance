@@ -189,6 +189,32 @@ def build_stylesheet(theme: Theme) -> str:
         border-bottom: 1px solid {theme.border_dim};
     }}
 
+    /* ---- Tables ---- */
+    QTableWidget, QTreeWidget {{
+        background-color: {theme.bg_surface};
+        alternate-background-color: {theme.bg_raised};
+        color: {theme.text_primary};
+        border: none;
+        gridline-color: {theme.border_dim};
+        selection-background-color: {theme.accent_dim};
+        selection-color: {theme.text_primary};
+    }}
+    QTableWidget::item, QTreeWidget::item {{
+        padding: 4px 6px;
+    }}
+    QHeaderView::section {{
+        background-color: {theme.bg_raised};
+        color: {theme.text_secondary};
+        border: none;
+        border-bottom: 1px solid {theme.border_med};
+        padding: 5px 6px;
+        font-weight: 600;
+    }}
+    QTableCornerButton::section {{
+        background-color: {theme.bg_raised};
+        border: none;
+    }}
+
     /* ---- Scrollbars ---- */
     QScrollBar:vertical {{
         background: {theme.bg_base};

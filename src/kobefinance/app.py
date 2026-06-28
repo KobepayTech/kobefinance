@@ -11,13 +11,13 @@ from .services.market_data import MarketDataProvider, SimulatedProvider
 from .ui.main_window import MainWindow
 from .ui.screens.base import REGISTRY, ScreenSpec, register
 from .ui.screens.dashboard import DashboardScreen
+from .ui.screens.markets import MarketsScreen
 from .ui.screens.placeholder import PlaceholderScreen
 
-# Sections shown in the sidebar in addition to the dashboard. Each becomes a
+# Sections shown in the sidebar that are not yet built. Each becomes a
 # placeholder screen until its real module lands on the roadmap.
 ROADMAP_SCREENS: list[tuple[str, str]] = [
     ("watchlist", "Watchlist"),
-    ("markets", "Markets"),
     ("equity_research", "Equity Research"),
     ("portfolio", "Portfolio"),
     ("news", "News"),
@@ -34,6 +34,14 @@ def register_screens(provider: MarketDataProvider) -> None:
             screen_id="dashboard",
             title="Dashboard",
             factory=lambda: DashboardScreen(provider),
+            section="General",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="markets",
+            title="Markets",
+            factory=lambda: MarketsScreen(provider),
             section="General",
         )
     )

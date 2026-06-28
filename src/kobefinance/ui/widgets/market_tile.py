@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ...models import Quote
 from ...theme import ACTIVE_THEME
-from ..formatting import arrow, fmt_change, fmt_pct, fmt_price
+from ..formatting import arrow, fmt_money, fmt_pct
 
 
 def _elide(text: str, limit: int) -> str:
@@ -39,8 +39,9 @@ class MarketTile(QFrame):
         self._symbol.setStyleSheet(
             f"color:{theme.text_primary}; font-weight:700; font-size:15px;"
         )
-        self._name = QLabel(_elide(quote.name, 16))
-        self._name.setToolTip(quote.name)
+        tag = f" · {quote.exchange}" if quote.exchange else ""
+        self._name = QLabel(_elide(quote.name, 14) + tag)
+        self._name.setToolTip(f"{quote.name} ({quote.exchange})" if quote.exchange else quote.name)
         self._name.setStyleSheet(f"color:{theme.text_tertiary}; font-size:11px;")
         left.addWidget(self._symbol)
         left.addWidget(self._name)
@@ -67,10 +68,8 @@ class MarketTile(QFrame):
     def update_quote(self, quote: Quote) -> None:
         theme = ACTIVE_THEME
         color = theme.signed_color(quote.change)
-        self._price.setText(fmt_price(quote.price))
-        self._change.setText(
-            f"{arrow(quote.change)} {fmt_change(quote.change)}  {fmt_pct(quote.change_pct)}"
-        )
+        self._price.setText(fmt_money(quote.price, quote.currency))
+        self._change.setText(f"{arrow(quote.change)} {fmt_pct(quote.change_pct)}")
         self._change.setStyleSheet(
             f"color:{color}; font-family:{theme.font_mono}; font-size:12px;"
         )

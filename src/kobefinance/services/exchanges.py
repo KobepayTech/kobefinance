@@ -83,6 +83,8 @@ EXCHANGES: list[Exchange] = [
     Exchange("NASDAQ", "Nasdaq Stock Market", "United States", "New York", "USD", "Global", "XNAS", "America/New_York"),
     Exchange("NYSE", "New York Stock Exchange", "United States", "New York", "USD", "Global", "XNYS", "America/New_York"),
     Exchange("LSE", "London Stock Exchange", "United Kingdom", "London", "GBP", "Global", "XLON", "Europe/London", ".L"),
+    Exchange("KRX", "Korea Exchange", "South Korea", "Seoul", "KRW", "Global", "XKRX", "Asia/Seoul", ".KS"),
+    Exchange("TWSE", "Taiwan Stock Exchange", "Taiwan", "Taipei", "TWD", "Global", "XTAI", "Asia/Taipei", ".TW"),
     Exchange("FOREX", "Foreign Exchange (spot FX)", "Global", "—", "USD", "Global", "", "UTC"),
     Exchange("CRYPTO", "Crypto (global)", "Global", "—", "USD", "Global", "", "UTC"),
 ]

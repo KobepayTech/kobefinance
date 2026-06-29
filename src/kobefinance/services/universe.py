@@ -169,11 +169,23 @@ LISTINGS: dict[str, list[tuple[str, str, float]]] = {
         ("AMZN", "Amazon.com Inc.", 219.40),
         ("META", "Meta Platforms", 612.80),
         ("TSLA", "Tesla Inc.", 345.60),
+        ("AVGO", "Broadcom Inc.", 235.00),
+        ("QCOM", "Qualcomm Inc.", 168.00),
     ],
     "NYSE": [
         ("JPM", "JPMorgan Chase", 248.00),
         ("KO", "Coca-Cola Co.", 62.30),
         ("XOM", "Exxon Mobil", 112.40),
+        ("TSM", "TSMC (ADR)", 205.00),
+        ("SONY", "Sony Group (ADR)", 95.00),
+    ],
+    "KRX": [
+        ("005930", "Samsung Electronics", 75000.0),
+        ("000660", "SK hynix", 195000.0),
+    ],
+    "TWSE": [
+        ("2330", "TSMC", 1080.0),
+        ("2317", "Hon Hai (Foxconn)", 205.0),
     ],
     "LSE": [
         ("SHEL", "Shell plc", 2710.00),

@@ -21,6 +21,7 @@ from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.markets import MarketsScreen
 from .ui.screens.placeholder import PlaceholderScreen
 from .ui.screens.portfolio import PortfolioScreen
+from .ui.screens.relationship_map import RelationshipMapScreen
 from .ui.screens.settings_screen import SettingsScreen
 from .ui.screens.trading import TradingScreen
 
@@ -88,6 +89,14 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
             title="Strategy Lab",
             factory=lambda: BotDesignerScreen(provider),
             section="Trading",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="relationships",
+            title="Relationship Map",
+            factory=lambda: RelationshipMapScreen(provider),
+            section="Intelligence",
         )
     )
     register(

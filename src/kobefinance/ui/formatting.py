@@ -26,6 +26,8 @@ CURRENCY_SYMBOLS: dict[str, str] = {
     "DZD": "DA ",
     "MWK": "MK",
     "ZWG": "Z$",
+    "KRW": "₩",
+    "TWD": "NT$",
 }
 
 

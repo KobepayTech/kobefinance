@@ -41,6 +41,12 @@ Working foundation:
 - **Portfolio + risk** — holdings with allocation weights and unrealized P&L,
   plus portfolio risk (annualized volatility, Sharpe, max drawdown, and a
   historical 1-day 95% VaR) from a weighted blend of holdings' return series.
+- **Relationship Map** — a company-centric supply-chain / customer graph
+  (native QGraphicsScene). The center company is ringed by suppliers (left) and
+  customers (right); public nodes overlay live price + 1D%, edges are colored
+  by the supplier's trend and weighted by relationship importance, hover
+  tooltips add 5D/30D + confidence + products, and a **supplier-stress signal**
+  flags when several suppliers fall together.
 - **AI Chat** — a market analyst grounded in live quotes, backed by the
   configured LLM (offline Ollama/llama.cpp or Claude), with a rule-based
   offline fallback so it answers from live data with no model installed.

@@ -20,6 +20,7 @@ from .ui.screens.bot_designer import BotDesignerScreen
 from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
 from .ui.screens.equity_research import EquityResearchScreen
+from .ui.screens.funds import FundsScreen
 from .ui.screens.markets import MarketsScreen
 from .ui.screens.news import NewsScreen
 from .ui.screens.portfolio import PortfolioScreen
@@ -110,6 +111,14 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
             screen_id="relationships",
             title="Relationship Map",
             factory=lambda: RelationshipMapScreen(provider),
+            section="Intelligence",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="funds",
+            title="Funds",
+            factory=lambda: FundsScreen(provider),
             section="Intelligence",
         )
     )

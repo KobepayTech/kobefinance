@@ -65,6 +65,14 @@ Working foundation:
 
 yfinance also powers **Market Cap + P/E columns on the Watchlist** and **real
 market-cap node sizing on the Relationship Map**.
+- **Funds** — parse a fund statement PDF (local path, URL, or the bundled
+  UTT AMIS / Umoja Fund sample) into a native **fund-chain graph** — fund at
+  the center; manager, custodian, unit holders, and regulator on the left;
+  portfolio assets on the right; income drivers below — plus an asset-allocation
+  and income breakdown. Rule-based parser (NAV, net/total assets, manager,
+  custodian, asset & income lines); runs report → save to a local SQLite
+  history. *(Adapted from the fund_chain_bot pipeline; PDF parsing via
+  pdfplumber.)*
 - **News** — live headlines per ticker from Yahoo Finance search, with
   publisher + age; double-click opens the article.
 - **Auto-traders** — deploy a Strategy Lab bot to the paper broker: it

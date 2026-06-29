@@ -54,9 +54,12 @@ Working foundation:
   leverage, and MT5 connection (the MT5 password is never written to disk).
 - **Watchlist** — an editable, settings-persisted quote board across all asset
   classes (equities, FX, crypto), multi-currency and live.
-- **Equity Research** — per-instrument 1Y chart plus multi-horizon performance
-  (1D/5D/1M/1Y), period range, and a supply-chain note. *(Fundamentals aren't
-  in the free feed; this is price-derived.)*
+- **Equity Research** — **powered by yfinance**: real fundamentals (market cap,
+  P/E trailing & forward, EPS, dividend yield, beta, 52-week range, sector,
+  business summary) plus a 1Y chart and multi-horizon performance
+  (1D/5D/1M/1Y) and a supply-chain note. Falls back to price-derived stats when
+  yfinance can't serve a symbol. *(yfinance is routed through a `requests`
+  session so it works behind this environment's proxy.)*
 - **News** — live headlines per ticker from Yahoo Finance search, with
   publisher + age; double-click opens the article.
 - **Auto-traders** — deploy a Strategy Lab bot to the paper broker: it

@@ -65,6 +65,17 @@ def fmt_instrument_price(value: float, currency: str, kind: str) -> str:
     return fmt_money(value, currency)
 
 
+def fmt_compact(value: float, currency: str = "USD") -> str:
+    """Format a large number compactly, e.g. ``$4.17T`` / ``₦480.0B``."""
+    symbol = CURRENCY_SYMBOLS.get(currency, "")
+    prefix = symbol if symbol else (f"{currency} " if currency else "")
+    abs_v = abs(value)
+    for threshold, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if abs_v >= threshold:
+            return f"{prefix}{value / threshold:,.2f}{suffix}"
+    return f"{prefix}{value:,.2f}"
+
+
 def fmt_change(value: float) -> str:
     """Format an absolute change with an explicit sign."""
     return f"{value:+,.2f}"

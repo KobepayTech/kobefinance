@@ -12,6 +12,7 @@ from PySide6.QtCore import QDateTime, QObject, QRunnable, Qt, QThreadPool, Signa
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
+    QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -24,8 +25,9 @@ from PySide6.QtWidgets import (
 from ...services.backtest.engine import run_backtest
 from ...services.llm.backends import make_backend
 from ...services.llm.base import LLMConfig
-from ...services.llm.bot_designer import design
+from ...services.llm.bot_designer import build_strategy, design
 from ...services.market_data import RANGES
+from ...services.trading.bot_runner import BotRunner
 from ...services.universe import DASHBOARD_WATCHLIST
 from ...theme import ACTIVE_THEME
 from ..widgets.panel import Panel
@@ -71,9 +73,12 @@ class BotDesignerScreen(Screen):
     screen_id = "bots"
     title = "Strategy Lab"
 
-    def __init__(self, provider) -> None:
+    def __init__(self, provider, broker=None, bot_manager=None) -> None:
         super().__init__()
         self._provider = provider
+        self._broker = broker
+        self._bot_manager = bot_manager
+        self._last = None  # (DesignResult, uid)
         self._pool = QThreadPool.globalInstance()
         self._signals = _Signals()
         self._signals.done.connect(self._on_done)
@@ -197,7 +202,51 @@ class BotDesignerScreen(Screen):
         self._view = QChartView(self._chart)
         self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
         panel.add(self._view, stretch=1)
+
+        # Deploy-to-paper controls (enabled after a backtest).
+        deploy = QWidget()
+        drow = QHBoxLayout(deploy)
+        drow.setContentsMargins(0, 4, 0, 0)
+        drow.addWidget(QLabel("Qty"))
+        self._deploy_qty = QDoubleSpinBox()
+        self._deploy_qty.setRange(0.01, 1_000_000.0)
+        self._deploy_qty.setDecimals(2)
+        self._deploy_qty.setValue(100.0)
+        drow.addWidget(self._deploy_qty)
+        self._deploy_btn = QPushButton("Deploy to paper auto-trader")
+        self._deploy_btn.setObjectName("Accent")
+        self._deploy_btn.setEnabled(False)
+        self._deploy_btn.clicked.connect(self._deploy)
+        drow.addWidget(self._deploy_btn, stretch=1)
+        if self._bot_manager is None or self._broker is None:
+            deploy.setVisible(False)
+        panel.add(deploy)
+
+        self._deploy_status = QLabel("")
+        self._deploy_status.setWordWrap(True)
+        self._deploy_status.setStyleSheet(f"color:{theme.text_tertiary}; font-size:12px;")
+        panel.add(self._deploy_status)
         return panel
+
+    def _deploy(self) -> None:
+        if not self._last or self._bot_manager is None or self._broker is None:
+            return
+        result, uid = self._last
+        strategy = build_strategy(result.spec)  # fresh, unprepared instance
+        name = f"{result.spec.kind} · {uid.split('.')[0]}"
+        bot = BotRunner(
+            name=name,
+            uid=uid,
+            strategy=strategy,
+            quantity=self._deploy_qty.value(),
+            broker=self._broker,
+            provider=self._provider,
+        )
+        self._bot_manager.add(bot)
+        self._deploy_status.setText(
+            f"Deployed '{name}' to the paper auto-trader. Watch it on the Trading "
+            "desk under Auto-Traders."
+        )
 
     # -- run ------------------------------------------------------------------
 
@@ -224,6 +273,9 @@ class BotDesignerScreen(Screen):
 
     def _on_done(self, payload) -> None:
         result, bt, uid = payload
+        self._last = (result, uid)
+        if self._bot_manager is not None and self._broker is not None:
+            self._deploy_btn.setEnabled(True)
         self._run.setEnabled(True)
         self._py_view.setPlainText(result.python_code)
         self._mql_view.setPlainText(result.mql5_code)

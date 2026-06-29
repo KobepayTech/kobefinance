@@ -8,7 +8,7 @@ buying-power check.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -34,24 +34,53 @@ from ..widgets.panel import Panel
 from .base import Screen
 
 REFRESH_MS = 1500
+BOT_STEP_MS = 6000
+
+
+class _BotSignals(QObject):
+    done = Signal()
+
+
+class _BotStepTask(QRunnable):
+    """Step all deployed bots off the UI thread (history fetches can block)."""
+
+    def __init__(self, manager, signals):
+        super().__init__()
+        self._manager = manager
+        self._signals = signals
+
+    def run(self):
+        try:
+            self._manager.step_all()
+        except Exception:
+            pass
+        self._signals.done.emit()
 
 
 class TradingScreen(Screen):
-    """Account + positions + working orders + order entry."""
+    """Account + positions + working orders + order entry + auto-traders."""
 
     screen_id = "trading"
     title = "Trading"
 
-    def __init__(self, provider, broker=None, settings=None) -> None:
+    def __init__(self, provider, broker=None, settings=None, bot_manager=None) -> None:
         super().__init__()
         self._provider = provider
         self._paper = broker or PaperBroker(provider)
         self._mt5 = MetaTraderBroker()
         self._broker = self._paper
+        self._bot_manager = bot_manager
+        self._pool = QThreadPool.globalInstance()
+        self._bot_signals = _BotSignals()
+        self._bot_signals.done.connect(self._refresh)
 
         self._timer = QTimer(self)
         self._timer.setInterval(REFRESH_MS)
         self._timer.timeout.connect(self._refresh)
+
+        self._bot_timer = QTimer(self)
+        self._bot_timer.setInterval(BOT_STEP_MS)
+        self._bot_timer.timeout.connect(self._step_bots)
 
         self.root.addWidget(self._build_top())
         body = QHBoxLayout()
@@ -181,8 +210,40 @@ class TradingScreen(Screen):
         self._status.setWordWrap(True)
         self._status.setStyleSheet(f"color:{theme.text_tertiary}; font-size:12px;")
         panel.add(self._status)
+
+        self._bots_title = QLabel("AUTO-TRADERS")
+        self._bots_title.setObjectName("PanelTitle")
+        panel.add(self._bots_title)
+        self._bots = QTableWidget(0, 3)
+        self._bots.setHorizontalHeaderLabels(["Bot", "Target", "Last action"])
+        self._bots.verticalHeader().setVisible(False)
+        self._bots.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._bots.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._bots.setShowGrid(False)
+        self._bots.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        panel.add(self._bots)
+        self._stop_bot = QPushButton("Stop selected bot")
+        self._stop_bot.clicked.connect(self._stop_selected_bot)
+        panel.add(self._stop_bot)
+        if self._bot_manager is None:
+            for w in (self._bots_title, self._bots, self._stop_bot):
+                w.setVisible(False)
+
         panel.add_stretch()
         return panel
+
+    def _step_bots(self) -> None:
+        if self._bot_manager and self._bot_manager.bots():
+            self._pool.start(_BotStepTask(self._bot_manager, self._bot_signals))
+
+    def _stop_selected_bot(self) -> None:
+        if self._bot_manager is None:
+            return
+        row = self._bots.currentRow()
+        bots = self._bot_manager.bots()
+        if 0 <= row < len(bots):
+            self._bot_manager.remove(bots[row])
+            self._refresh()
 
     def _sync_price_enabled(self) -> None:
         self._price.setEnabled(OrderType(self._otype.currentData()) is not OrderType.MARKET)
@@ -303,9 +364,18 @@ class TradingScreen(Screen):
             ):
                 self._working.setItem(r, c, QTableWidgetItem(text))
 
+        if self._bot_manager is not None:
+            bots = self._bot_manager.bots()
+            self._bots.setRowCount(len(bots))
+            for r, bot in enumerate(bots):
+                for c, text in enumerate([bot.name, bot.target_label, bot.last_action]):
+                    self._bots.setItem(r, c, QTableWidgetItem(text))
+
     def on_show(self) -> None:
         self._refresh()
         self._timer.start()
+        self._bot_timer.start()
 
     def on_hide(self) -> None:
         self._timer.stop()
+        self._bot_timer.stop()

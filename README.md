@@ -52,6 +52,18 @@ Working foundation:
   offline fallback so it answers from live data with no model installed.
 - **Settings** — persists the LLM backend/model, paper starting cash &
   leverage, and MT5 connection (the MT5 password is never written to disk).
+- **Watchlist** — an editable, settings-persisted quote board across all asset
+  classes (equities, FX, crypto), multi-currency and live.
+- **Equity Research** — per-instrument 1Y chart plus multi-horizon performance
+  (1D/5D/1M/1Y), period range, and a supply-chain note. *(Fundamentals aren't
+  in the free feed; this is price-derived.)*
+- **News** — live headlines per ticker from Yahoo Finance search, with
+  publisher + age; double-click opens the article.
+- **Auto-traders** — deploy a Strategy Lab bot to the paper broker: it
+  re-evaluates its strategy on a timer and reconciles the position (long/short/
+  flat), shown live on the Trading desk's Auto-Traders table.
+- Relationship Map now ships **Apple, NVIDIA, and TSMC** graphs, with **30D**
+  on edge labels and **node sizing by market cap**.
 - **Trading layer** — a `Broker` abstraction with a safe **paper broker**
   (default, with margin/buying-power checks and limit/stop orders) and a
   **MetaTrader 5** adapter for live forex. *(MT5 is Windows-only and needs the

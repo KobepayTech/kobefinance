@@ -20,6 +20,7 @@ class RelatedEntity:
     uid: str | None = None   # provider uid if publicly traded, else None
     products: str = ""
     side: str = "left"       # "left" (suppliers) | "right" (customers)
+    market_cap_b: float = 0.0  # approx market cap in USD billions (node sizing)
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class RelationshipGraph:
     center_name: str
     center_uid: str
     related: list[RelatedEntity] = field(default_factory=list)
+    center_market_cap_b: float = 0.0
 
     def suppliers(self) -> list[RelatedEntity]:
         return [e for e in self.related if e.side == "left"]
@@ -43,17 +45,48 @@ GRAPHS: dict[str, RelationshipGraph] = {
     "AAPL.NASDAQ": RelationshipGraph(
         center_name="Apple",
         center_uid="AAPL.NASDAQ",
+        center_market_cap_b=3500.0,
         related=[
-            RelatedEntity("TSMC", "supplier", 95, "high", "TSM.NYSE", "SoC fabrication", "left"),
-            RelatedEntity("Hon Hai (Foxconn)", "supplier", 90, "high", "2317.TWSE", "Final assembly", "left"),
-            RelatedEntity("Broadcom", "supplier", 88, "high", "AVGO.NASDAQ", "Wireless & connectivity chips", "left"),
-            RelatedEntity("Qualcomm", "supplier", 82, "high", "QCOM.NASDAQ", "5G modems", "left"),
-            RelatedEntity("Samsung Electronics", "supplier", 78, "high", "005930.KRX", "Displays & memory", "left"),
-            RelatedEntity("Sony", "supplier", 70, "medium", "SONY.NYSE", "Camera image sensors", "left"),
+            RelatedEntity("TSMC", "supplier", 95, "high", "TSM.NYSE", "SoC fabrication", "left", 1000.0),
+            RelatedEntity("Hon Hai (Foxconn)", "supplier", 90, "high", "2317.TWSE", "Final assembly", "left", 90.0),
+            RelatedEntity("Broadcom", "supplier", 88, "high", "AVGO.NASDAQ", "Wireless & connectivity chips", "left", 1700.0),
+            RelatedEntity("Qualcomm", "supplier", 82, "high", "QCOM.NASDAQ", "5G modems", "left", 190.0),
+            RelatedEntity("Samsung Electronics", "supplier", 78, "high", "005930.KRX", "Displays & memory", "left", 370.0),
+            RelatedEntity("Sony", "supplier", 70, "medium", "SONY.NYSE", "Camera image sensors", "left", 120.0),
             RelatedEntity("Consumers", "customer", 99, "high", None, "Device & services sales", "right"),
             RelatedEntity("Telecom carriers", "customer", 84, "high", None, "iPhone distribution", "right"),
             RelatedEntity("Retailers", "customer", 72, "medium", None, "Apple Store & resellers", "right"),
             RelatedEntity("Enterprise", "customer", 60, "medium", None, "Mac/iPad fleets", "right"),
+        ],
+    ),
+    "NVDA.NASDAQ": RelationshipGraph(
+        center_name="NVIDIA",
+        center_uid="NVDA.NASDAQ",
+        center_market_cap_b=3400.0,
+        related=[
+            RelatedEntity("TSMC", "supplier", 96, "high", "TSM.NYSE", "GPU fabrication", "left", 1000.0),
+            RelatedEntity("SK hynix", "supplier", 88, "high", "000660.KRX", "HBM memory", "left", 120.0),
+            RelatedEntity("Samsung Electronics", "supplier", 80, "high", "005930.KRX", "HBM / memory", "left", 370.0),
+            RelatedEntity("Hon Hai (Foxconn)", "supplier", 75, "medium", "2317.TWSE", "Server systems", "left", 90.0),
+            RelatedEntity("Microsoft", "customer", 92, "high", "MSFT.NASDAQ", "Azure AI compute", "right", 3300.0),
+            RelatedEntity("Amazon", "customer", 88, "high", "AMZN.NASDAQ", "AWS GPU instances", "right", 2300.0),
+            RelatedEntity("Meta", "customer", 86, "high", "META.NASDAQ", "AI training clusters", "right", 1500.0),
+            RelatedEntity("Alphabet", "customer", 82, "high", "GOOGL.NASDAQ", "Cloud / AI", "right", 2100.0),
+            RelatedEntity("Tesla", "customer", 68, "medium", "TSLA.NASDAQ", "Autonomy training", "right", 1100.0),
+        ],
+    ),
+    "TSM.NYSE": RelationshipGraph(
+        center_name="TSMC",
+        center_uid="TSM.NYSE",
+        center_market_cap_b=1000.0,
+        related=[
+            RelatedEntity("ASML", "supplier", 94, "high", None, "EUV lithography", "left"),
+            RelatedEntity("Applied Materials", "supplier", 80, "medium", None, "Deposition / etch", "left"),
+            RelatedEntity("Tokyo Electron", "supplier", 78, "medium", None, "Wafer processing", "left"),
+            RelatedEntity("Apple", "customer", 95, "high", "AAPL.NASDAQ", "A/M-series SoCs", "right", 3500.0),
+            RelatedEntity("NVIDIA", "customer", 95, "high", "NVDA.NASDAQ", "Data-center GPUs", "right", 3400.0),
+            RelatedEntity("Qualcomm", "customer", 85, "high", "QCOM.NASDAQ", "Snapdragon SoCs", "right", 190.0),
+            RelatedEntity("Broadcom", "customer", 84, "high", "AVGO.NASDAQ", "Networking / custom silicon", "right", 1700.0),
         ],
     ),
 }

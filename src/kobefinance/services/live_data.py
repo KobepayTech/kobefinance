@@ -32,6 +32,34 @@ _CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=1d&i
 _HISTORY_URL = (
     "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={range}&interval={interval}"
 )
+_SEARCH_URL = (
+    "https://query1.finance.yahoo.com/v1/finance/search?q={q}"
+    "&newsCount={n}&quotesCount=0"
+)
+
+
+def fetch_news(query: str, count: int = 12, timeout: float = 10.0) -> list[dict]:
+    """Fetch recent news headlines for *query* from Yahoo Finance's search API.
+
+    Returns a list of ``{title, publisher, link, published}`` dicts (``published``
+    is a POSIX timestamp). Network errors raise; callers run this off the UI
+    thread and degrade gracefully.
+    """
+    url = _SEARCH_URL.format(q=urllib.parse.quote(query), n=count)
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.load(resp)
+    out: list[dict] = []
+    for item in payload.get("news", []) or []:
+        out.append(
+            {
+                "title": item.get("title", "(untitled)"),
+                "publisher": item.get("publisher", ""),
+                "link": item.get("link", ""),
+                "published": int(item.get("providerPublishTime", 0) or 0),
+            }
+        )
+    return out
 
 # Exchanges whose bare ticker is the Yahoo symbol (no suffix).
 _BARE_SYMBOL_EXCHANGES = {"NASDAQ", "NYSE", "CRYPTO"}

@@ -196,6 +196,8 @@ class RelationshipMapScreen(Screen):
         if node.public and node.change_1d is not None:
             ticker = (entity.uid or "").split(".")[0]
             text = f"{ticker} {fmt_pct(node.change_1d)}"
+            if entity.uid in self._hist:
+                text += f"  ·  30D {fmt_pct(self._hist[entity.uid][1])}"
             lcolor = theme.signed_color(node.change_1d)
         else:
             text = f"{entity.relation} · {entity.confidence}%"
@@ -204,12 +206,18 @@ class RelationshipMapScreen(Screen):
         label.setDefaultTextColor(QColor(lcolor))
         label.setPos(lx - label.boundingRect().width() / 2, ly - 22)
 
+    @staticmethod
+    def _node_width(market_cap_b: float) -> float:
+        # Wider node for bigger market cap (sqrt scale, clamped).
+        return _NODE_W + min(56.0, (market_cap_b ** 0.5) * 1.2)
+
     def _draw_node(self, pos: tuple[float, float], node) -> None:
         theme = ACTIVE_THEME
         entity = node.entity
+        w = self._node_width(entity.market_cap_b)
         border = self._trend_color(node.change_1d if node.public else None)
         rect_item = self._scene.addRect(
-            QRectF(pos[0] - _NODE_W / 2, pos[1] - _NODE_H / 2, _NODE_W, _NODE_H),
+            QRectF(pos[0] - w / 2, pos[1] - _NODE_H / 2, w, _NODE_H),
             QPen(border, 2.0),
             QBrush(QColor(theme.bg_surface)),
         )
@@ -238,8 +246,8 @@ class RelationshipMapScreen(Screen):
             )
         text = self._scene.addText("")
         text.setHtml(html)
-        text.setTextWidth(_NODE_W - 18)
-        text.setPos(pos[0] - _NODE_W / 2 + 9, pos[1] - _NODE_H / 2 + 6)
+        text.setTextWidth(w - 18)
+        text.setPos(pos[0] - w / 2 + 9, pos[1] - _NODE_H / 2 + 6)
 
     def _draw_center(self, pos: tuple[float, float], graph: RelationshipGraph) -> None:
         theme = ACTIVE_THEME

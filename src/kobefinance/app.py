@@ -11,6 +11,7 @@ from . import __app_name__
 from .services.live_data import HybridProvider
 from .services.market_data import MarketDataProvider, SimulatedProvider
 from .services.settings import Settings
+from .services.trading.bot_runner import BotManager
 from .services.trading.paper_broker import PaperBroker
 from .ui.main_window import MainWindow
 from .ui.screens.ai_chat import AiChatScreen
@@ -18,31 +19,28 @@ from .ui.screens.base import REGISTRY, ScreenSpec, register
 from .ui.screens.bot_designer import BotDesignerScreen
 from .ui.screens.charts import ChartsScreen
 from .ui.screens.dashboard import DashboardScreen
+from .ui.screens.equity_research import EquityResearchScreen
 from .ui.screens.markets import MarketsScreen
-from .ui.screens.placeholder import PlaceholderScreen
+from .ui.screens.news import NewsScreen
 from .ui.screens.portfolio import PortfolioScreen
 from .ui.screens.relationship_map import RelationshipMapScreen
 from .ui.screens.settings_screen import SettingsScreen
 from .ui.screens.trading import TradingScreen
-
-# Sidebar entries still on the roadmap (placeholders).
-ROADMAP_SCREENS: list[tuple[str, str]] = [
-    ("watchlist", "Watchlist"),
-    ("equity_research", "Equity Research"),
-    ("news", "News"),
-]
+from .ui.screens.watchlist import WatchlistScreen
 
 
 def register_screens(provider: MarketDataProvider, settings: Settings | None = None) -> None:
     """Populate the screen registry. Idempotent for repeated app launches."""
     REGISTRY.clear()
     settings = settings or Settings()
-    # One paper broker shared by the Trading and Portfolio screens.
+    # One paper broker + bot manager shared across Trading, Portfolio, and the
+    # Strategy Lab (so a designed bot can auto-trade and show up on the desk).
     broker = PaperBroker(
         provider,
         starting_cash=settings.starting_cash(),
         max_leverage=settings.max_leverage(),
     )
+    bot_manager = BotManager()
     register(
         ScreenSpec(
             screen_id="dashboard",
@@ -69,9 +67,17 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
     )
     register(
         ScreenSpec(
+            screen_id="watchlist",
+            title="Watchlist",
+            factory=lambda: WatchlistScreen(provider, settings),
+            section="General",
+        )
+    )
+    register(
+        ScreenSpec(
             screen_id="trading",
             title="Trading",
-            factory=lambda: TradingScreen(provider, broker, settings),
+            factory=lambda: TradingScreen(provider, broker, settings, bot_manager),
             section="Trading",
         )
     )
@@ -87,8 +93,16 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
         ScreenSpec(
             screen_id="bots",
             title="Strategy Lab",
-            factory=lambda: BotDesignerScreen(provider),
+            factory=lambda: BotDesignerScreen(provider, broker, bot_manager),
             section="Trading",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="equity_research",
+            title="Equity Research",
+            factory=lambda: EquityResearchScreen(provider),
+            section="Intelligence",
         )
     )
     register(
@@ -96,6 +110,14 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
             screen_id="relationships",
             title="Relationship Map",
             factory=lambda: RelationshipMapScreen(provider),
+            section="Intelligence",
+        )
+    )
+    register(
+        ScreenSpec(
+            screen_id="news",
+            title="News",
+            factory=lambda: NewsScreen(provider),
             section="Intelligence",
         )
     )
@@ -115,15 +137,6 @@ def register_screens(provider: MarketDataProvider, settings: Settings | None = N
             section="System",
         )
     )
-    for screen_id, title in ROADMAP_SCREENS:
-        register(
-            ScreenSpec(
-                screen_id=screen_id,
-                title=title,
-                # Bind loop vars as defaults so each factory is distinct.
-                factory=lambda sid=screen_id, t=title: PlaceholderScreen(sid, t),
-            )
-        )
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

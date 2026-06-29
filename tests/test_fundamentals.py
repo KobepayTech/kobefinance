@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import kobefinance.services.fundamentals as fund
-from kobefinance.services.fundamentals import _num, fetch_fundamentals, fetch_history
+from kobefinance.services.fundamentals import (
+    _num,
+    fetch_capsule,
+    fetch_fundamentals,
+    fetch_history,
+    fetch_market_cap,
+)
 from kobefinance.ui.formatting import fmt_compact
 
 
@@ -66,3 +72,50 @@ def test_fetch_fundamentals_parses_a_fake_ticker(monkeypatch):
     assert f.sector == "Technology"
     assert f.trailing_pe == 34.4
     assert f.year_high == 260.0
+
+
+def _fake_ticker_with_analysts():
+    class _FastInfo(dict):
+        pass
+
+    class _FakeTicker:
+        fast_info = _FastInfo(market_cap=3.0e12, currency="USD")
+        calendar = {"Earnings Date": ["2026-07-30"]}
+
+        def get_info(self):
+            return {
+                "longName": "Apple Inc.",
+                "trailingPE": 34.4,
+                "targetMeanPrice": 320.0,
+                "targetHighPrice": 400.0,
+                "targetLowPrice": 250.0,
+                "recommendationKey": "buy",
+                "numberOfAnalystOpinions": 42,
+            }
+
+    return _FakeTicker()
+
+
+def test_fetch_fundamentals_parses_analyst_fields(monkeypatch):
+    monkeypatch.setattr(fund, "_ticker", lambda _sym: _fake_ticker_with_analysts())
+    f = fetch_fundamentals("AAPL")
+    assert f.target_mean == 320.0
+    assert f.target_high == 400.0
+    assert f.recommendation == "buy"
+    assert f.num_analysts == 42
+    assert f.earnings_date == "2026-07-30"
+
+
+def test_fetch_market_cap_and_capsule(monkeypatch):
+    monkeypatch.setattr(fund, "_ticker", lambda _sym: _fake_ticker_with_analysts())
+    assert fetch_market_cap("AAPL") == 3.0e12
+    cap, pe = fetch_capsule("AAPL")
+    assert cap == 3.0e12 and pe == 34.4
+
+
+def test_fetch_market_cap_none_on_error(monkeypatch):
+    def boom(_sym):
+        raise RuntimeError("no network")
+
+    monkeypatch.setattr(fund, "_ticker", boom)
+    assert fetch_market_cap("AAPL") is None

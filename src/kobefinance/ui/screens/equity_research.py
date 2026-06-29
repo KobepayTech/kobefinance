@@ -253,6 +253,32 @@ class EquityResearchScreen(Screen):
                 "Fundamentals unavailable for this instrument (no yfinance data).</span>"
             )
 
+        # Analyst coverage (yfinance).
+        analyst = ""
+        if f and (f.target_mean or f.recommendation or f.earnings_date):
+            parts = ["<br><br><b style='color:" + theme.text_secondary + "'>ANALYSTS</b><br>"]
+            if f.target_mean:
+                upside = None
+                if closes:
+                    upside = _pct(f.target_mean, closes[-1])
+                up_txt = ""
+                if upside is not None:
+                    up_txt = f" <span style='color:{theme.signed_color(upside)}'>({fmt_pct(upside)})</span>"
+                parts.append(
+                    f"Target (mean): {fmt_instrument_price(f.target_mean, ccy or 'USD', 'equity')}{up_txt}<br>"
+                )
+            if f.target_low and f.target_high:
+                parts.append(
+                    f"Target range: {fmt_instrument_price(f.target_low, ccy or 'USD', 'equity')}"
+                    f" – {fmt_instrument_price(f.target_high, ccy or 'USD', 'equity')}<br>"
+                )
+            if f.recommendation:
+                extra = f" ({f.num_analysts} analysts)" if f.num_analysts else ""
+                parts.append(f"Consensus: {f.recommendation.title()}{extra}<br>")
+            if f.earnings_date:
+                parts.append(f"Next earnings: {f.earnings_date}<br>")
+            analyst = "".join(parts)
+
         # Supply-chain cross-link.
         note = ""
         if uid in GRAPHS:
@@ -262,7 +288,7 @@ class EquityResearchScreen(Screen):
                 f"Supply chain (Relationship Map): {sup}…</span>"
             )
 
-        self._stats.setText(header + perf + fund + note)
+        self._stats.setText(header + perf + fund + analyst + note)
         self._summary.setPlainText(f.summary if f and f.summary else "")
 
     def on_show(self) -> None:

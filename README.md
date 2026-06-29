@@ -56,10 +56,15 @@ Working foundation:
   classes (equities, FX, crypto), multi-currency and live.
 - **Equity Research** — **powered by yfinance**: real fundamentals (market cap,
   P/E trailing & forward, EPS, dividend yield, beta, 52-week range, sector,
-  business summary) plus a 1Y chart and multi-horizon performance
-  (1D/5D/1M/1Y) and a supply-chain note. Falls back to price-derived stats when
-  yfinance can't serve a symbol. *(yfinance is routed through a `requests`
-  session so it works behind this environment's proxy.)*
+  business summary), **analyst coverage** (mean/high/low price target with
+  upside, consensus rating, analyst count, next earnings date), a 1Y chart and
+  multi-horizon performance (1D/5D/1M/1Y), and a supply-chain note. Falls back
+  to price-derived stats when yfinance can't serve a symbol. *(yfinance is
+  routed through a `requests` session so it works behind this environment's
+  proxy.)*
+
+yfinance also powers **Market Cap + P/E columns on the Watchlist** and **real
+market-cap node sizing on the Relationship Map**.
 - **News** — live headlines per ticker from Yahoo Finance search, with
   publisher + age; double-click opens the article.
 - **Auto-traders** — deploy a Strategy Lab bot to the paper broker: it

@@ -69,6 +69,13 @@ class Fundamentals:
     year_high: float | None = None
     year_low: float | None = None
     summary: str = ""
+    # Analyst coverage.
+    target_mean: float | None = None
+    target_high: float | None = None
+    target_low: float | None = None
+    recommendation: str = ""
+    num_analysts: int | None = None
+    earnings_date: str = ""
 
 
 def _num(value) -> float | None:
@@ -114,6 +121,7 @@ def fetch_fundamentals(yahoo_sym: str) -> Fundamentals | None:
     # (e.g. 0.38 means 0.38%), so we store it as-is and format with a '%'.
     div = _num(info.get("dividendYield"))
 
+    num_analysts = info.get("numberOfAnalystOpinions")
     out = Fundamentals(
         symbol=yahoo_sym,
         name=info.get("longName") or info.get("shortName") or "",
@@ -129,11 +137,67 @@ def fetch_fundamentals(yahoo_sym: str) -> Fundamentals | None:
         year_high=year_high if year_high is not None else _num(info.get("fiftyTwoWeekHigh")),
         year_low=year_low if year_low is not None else _num(info.get("fiftyTwoWeekLow")),
         summary=(info.get("longBusinessSummary") or "")[:600],
+        target_mean=_num(info.get("targetMeanPrice")),
+        target_high=_num(info.get("targetHighPrice")),
+        target_low=_num(info.get("targetLowPrice")),
+        recommendation=(info.get("recommendationKey") or "").replace("_", " "),
+        num_analysts=int(num_analysts) if num_analysts else None,
+        earnings_date=_next_earnings(ticker, info),
     )
     # If we got essentially nothing, treat as a miss.
     if not out.name and out.market_cap is None and not out.summary:
         return None
     return out
+
+
+def _next_earnings(ticker, info: dict) -> str:
+    """Best-effort next earnings date as YYYY-MM-DD."""
+    from datetime import date, datetime, timezone
+
+    try:
+        cal = ticker.calendar
+        if isinstance(cal, dict):
+            dates = cal.get("Earnings Date") or []
+            if dates:
+                d = dates[0]
+                return d.isoformat() if isinstance(d, date) else str(d)
+    except Exception:
+        pass
+    ts = info.get("earningsTimestampStart") or info.get("earningsTimestamp")
+    if ts:
+        try:
+            return datetime.fromtimestamp(int(ts), timezone.utc).date().isoformat()
+        except Exception:
+            return ""
+    return ""
+
+
+def fetch_market_cap(yahoo_sym: str) -> float | None:
+    """Fast market-cap lookup (fast_info, then info), or ``None``."""
+    try:
+        ticker = _ticker(yahoo_sym)
+    except Exception:
+        return None
+    try:
+        fi = ticker.fast_info
+        get = fi.get if hasattr(fi, "get") else lambda k, d=None: getattr(fi, k, d)
+        cap = _num(get("market_cap", get("marketCap")))
+        if cap is not None:
+            return cap
+    except Exception:
+        pass
+    try:
+        return _num((ticker.get_info() or {}).get("marketCap"))
+    except Exception:
+        return None
+
+
+def fetch_capsule(yahoo_sym: str) -> tuple[float | None, float | None]:
+    """(market_cap, trailing P/E) for the Watchlist; ``(None, None)`` on miss."""
+    f = fetch_fundamentals(yahoo_sym)
+    if f is None:
+        return (None, None)
+    return (f.market_cap, f.trailing_pe)
 
 
 def fetch_history(yahoo_sym: str, period: str = "1y", interval: str = "1d") -> list[Candle]:

@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...services.fundamentals import fetch_market_cap
+from ...services.live_data import yahoo_symbol
 from ...services.relationships import (
     GRAPHS,
     IMPORTANCE_WEIGHT,
@@ -44,27 +46,32 @@ class _HistSignals(QObject):
 
 
 class _HistTask(QRunnable):
-    """Fetch 5D/30D moves for the public nodes (off the UI thread)."""
+    """Fetch 5D/30D moves and real market caps for public nodes (off-thread)."""
 
-    def __init__(self, provider, uids, signals):
+    def __init__(self, provider, yahoo_map, signals):
         super().__init__()
         self._provider = provider
-        self._uids = uids
+        self._yahoo_map = yahoo_map  # uid -> yahoo symbol
         self._signals = signals
 
     def run(self):
-        out: dict[str, tuple[float, float]] = {}
-        for uid in self._uids:
+        hist: dict[str, tuple[float, float]] = {}
+        caps: dict[str, float] = {}
+        for uid, ysym in self._yahoo_map.items():
             try:
                 closes = [c.close for c in self._provider.history(uid, "1M")]
             except Exception:
                 closes = []
             if len(closes) > 6 and closes[-6] and closes[0]:
-                out[uid] = (
+                hist[uid] = (
                     (closes[-1] / closes[-6] - 1.0) * 100.0,
                     (closes[-1] / closes[0] - 1.0) * 100.0,
                 )
-        self._signals.done.emit(out)
+            if ysym:
+                cap = fetch_market_cap(ysym)
+                if cap:
+                    caps[uid] = cap
+        self._signals.done.emit((hist, caps))
 
 
 class RelationshipMapScreen(Screen):
@@ -77,6 +84,8 @@ class RelationshipMapScreen(Screen):
         super().__init__()
         self._provider = provider
         self._hist: dict[str, tuple[float, float]] = {}
+        self._caps: dict[str, float] = {}
+        self._inst_by_uid = {i.uid: i for i in provider.instruments()}
         self._pool = QThreadPool.globalInstance()
         self._hsignals = _HistSignals()
         self._hsignals.done.connect(self._on_hist)
@@ -126,6 +135,7 @@ class RelationshipMapScreen(Screen):
 
     def _on_select(self) -> None:
         self._hist = {}
+        self._caps = {}
         self._rebuild()
         self._fetch_history()
 
@@ -134,10 +144,16 @@ class RelationshipMapScreen(Screen):
         if graph is None:
             return
         uids = [e.uid for e in graph.related if e.uid] + [graph.center_uid]
-        self._pool.start(_HistTask(self._provider, uids, self._hsignals))
+        yahoo_map: dict[str, str] = {}
+        for uid in uids:
+            inst = self._inst_by_uid.get(uid)
+            ys = yahoo_symbol(inst) if inst else None
+            if ys:
+                yahoo_map[uid] = ys
+        self._pool.start(_HistTask(self._provider, yahoo_map, self._hsignals))
 
-    def _on_hist(self, data: dict) -> None:
-        self._hist = data
+    def _on_hist(self, data) -> None:
+        self._hist, self._caps = data
         self._rebuild()
 
     # -- rendering ------------------------------------------------------------
@@ -214,7 +230,9 @@ class RelationshipMapScreen(Screen):
     def _draw_node(self, pos: tuple[float, float], node) -> None:
         theme = ACTIVE_THEME
         entity = node.entity
-        w = self._node_width(entity.market_cap_b)
+        # Prefer the live market cap (billions) over the curated estimate.
+        cap_b = self._caps.get(entity.uid, 0.0) / 1e9 or entity.market_cap_b
+        w = self._node_width(cap_b)
         border = self._trend_color(node.change_1d if node.public else None)
         rect_item = self._scene.addRect(
             QRectF(pos[0] - w / 2, pos[1] - _NODE_H / 2, w, _NODE_H),

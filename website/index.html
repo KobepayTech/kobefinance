@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KobeFinance Terminal — Markets for Africa & the world</title>
+<meta name="description" content="A native desktop financial terminal for African and global markets: live quotes, charts, forex & crypto, AI strategy bots, portfolio risk, and fund analysis." />
+<style>
+  :root{
+    --bg:#0A0B0D; --surface:#121419; --raised:#1A1D24; --hover:#232730;
+    --dim:#1E222A; --med:#2A2F3A; --bright:#3D4452;
+    --text:#E6E8EC; --text2:#9AA0AC; --text3:#5C6472;
+    --accent:#F5A623; --accentdim:#5A4316; --pos:#2ECC71; --neg:#FF5252; --cyan:#34D3EB;
+    --ui:"Segoe UI","Helvetica Neue",system-ui,sans-serif;
+    --mono:"JetBrains Mono","Cascadia Mono","Consolas","Menlo",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  .muted{color:var(--text2)}
+  .mono{font-family:var(--mono)}
+  .accent{color:var(--accent)}
+  .pos{color:var(--pos)} .neg{color:var(--neg)}
+
+  header{position:sticky;top:0;z-index:20;background:rgba(10,11,13,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--dim)}
+  .nav{display:flex;align-items:center;gap:18px;height:60px}
+  .brand{font-weight:800;letter-spacing:2px;font-size:15px}
+  .brand .k{color:var(--accent)}
+  .nav .spacer{flex:1}
+  .nav a.link{color:var(--text2);font-size:14px}
+  .nav a.link:hover{color:var(--text)}
+  .btn{display:inline-block;border-radius:6px;padding:9px 16px;font-weight:600;font-size:14px;border:1px solid var(--med);color:var(--text);background:var(--raised)}
+  .btn:hover{border-color:var(--bright);background:var(--hover)}
+  .btn.primary{background:var(--accent);color:#0A0B0D;border:none}
+  .btn.primary:hover{filter:brightness(1.05)}
+
+  .hero{padding:76px 0 40px}
+  .badge{display:inline-block;font-size:12px;color:var(--accent);border:1px solid var(--accentdim);background:rgba(245,166,35,.06);padding:4px 10px;border-radius:100px;margin-bottom:18px}
+  h1{font-size:clamp(32px,5vw,54px);line-height:1.08;margin:.1em 0 .3em;letter-spacing:-.5px}
+  h1 .grad{background:linear-gradient(90deg,var(--accent),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:19px;color:var(--text2);max-width:640px}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .cta small{display:block;color:var(--text3);font-size:12px;margin-top:10px}
+
+  .mock{margin-top:44px;border:1px solid var(--dim);border-radius:12px;overflow:hidden;background:var(--surface);box-shadow:0 30px 80px -40px rgba(0,0,0,.9)}
+  .mock .bar{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--raised);border-bottom:1px solid var(--dim)}
+  .dot{width:11px;height:11px;border-radius:50%} .r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+  .ticker{height:30px;display:flex;align-items:center;gap:22px;padding:0 14px;border-bottom:1px solid var(--dim);font-family:var(--mono);font-size:12.5px;color:var(--text2);overflow:hidden;white-space:nowrap}
+  .mockbody{display:grid;grid-template-columns:150px 1fr;min-height:300px}
+  .side{border-right:1px solid var(--dim);padding:12px 0;font-size:13px}
+  .side div{padding:7px 16px;color:var(--text2)} .side div.on{color:var(--accent);border-left:2px solid var(--accent);background:var(--raised)}
+  .grid-tiles{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-content:start}
+  .tile{border:1px solid var(--dim);border-radius:6px;padding:10px 12px;background:var(--surface)}
+  .tile .sym{font-weight:700} .tile .px{font-family:var(--mono);font-size:16px} .tile .ch{font-family:var(--mono);font-size:12px}
+
+  section{padding:64px 0;border-top:1px solid var(--dim)}
+  h2{font-size:30px;margin:0 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--text2);margin:0 0 34px;max-width:620px}
+  .features{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+  .card{border:1px solid var(--dim);border-radius:10px;padding:20px;background:var(--surface)}
+  .card h3{margin:.2em 0 .4em;font-size:17px}
+  .card p{margin:0;color:var(--text2);font-size:14.5px}
+  .ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:rgba(245,166,35,.1);color:var(--accent);font-size:18px;margin-bottom:6px}
+
+  .prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+  .plan{border:1px solid var(--dim);border-radius:12px;padding:26px;background:var(--surface);display:flex;flex-direction:column}
+  .plan.hot{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .plan .name{font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:13px;color:var(--text2)}
+  .plan .price{font-size:38px;font-weight:800;margin:8px 0 2px}
+  .plan .price span{font-size:15px;color:var(--text3);font-weight:500}
+  .plan ul{list-style:none;padding:0;margin:16px 0 22px;flex:1}
+  .plan li{padding:6px 0 6px 24px;position:relative;color:var(--text2);font-size:14px;border-top:1px solid var(--dim)}
+  .plan li:before{content:"✓";position:absolute;left:0;color:var(--pos)}
+  .plan li.no{color:var(--text3)} .plan li.no:before{content:"—";color:var(--text3)}
+  .tag{align-self:flex-start;font-size:11px;color:var(--accent);border:1px solid var(--accentdim);border-radius:100px;padding:2px 9px;margin-bottom:12px}
+
+  .dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  .dlcard{border:1px solid var(--dim);border-radius:10px;padding:22px;background:var(--surface)}
+  .dlcard .os{font-size:15px;font-weight:700;margin-bottom:2px}
+  .dlcard .meta{color:var(--text3);font-size:12px;margin-bottom:14px}
+
+  .subscribe{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .subscribe input{flex:1;min-width:220px;background:var(--raised);border:1px solid var(--med);border-radius:6px;color:var(--text);padding:11px 14px;font-size:15px}
+  .subscribe input:focus{outline:none;border-color:var(--accent)}
+
+  details{border:1px solid var(--dim);border-radius:8px;padding:14px 18px;margin-bottom:10px;background:var(--surface)}
+  summary{cursor:pointer;font-weight:600}
+  details p{color:var(--text2);margin:.6em 0 0}
+
+  footer{border-top:1px solid var(--dim);padding:34px 0;color:var(--text3);font-size:13px}
+  .foot{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  .foot .spacer{flex:1}
+  .note{color:var(--text3);font-size:12px;margin-top:26px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <span class="brand"><span class="k">KOBE</span>FINANCE</span>
+    <div class="spacer"></div>
+    <a class="link" href="#features">Features</a>
+    <a class="link" href="#pricing">Pricing</a>
+    <a class="link" href="#download">Download</a>
+    <a class="btn primary" href="#download">Get the app</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- HERO -->
+  <div class="hero">
+    <span class="badge">Built for African & global markets</span>
+    <h1>The financial terminal for<br><span class="grad">emerging & global markets</span></h1>
+    <p class="lead">Live quotes across African, US, UK and Asian exchanges, forex &amp; crypto, native charts, AI-designed trading bots, portfolio risk, supply-chain maps, and fund analysis — in one fast native desktop app.</p>
+    <div class="cta">
+      <a class="btn primary" href="#download">Download for Windows</a>
+      <a class="btn" href="#features">Explore features</a>
+      <small>Free tier available · Pro from $19/mo · No data lock-in</small>
+    </div>
+
+    <!-- product mock -->
+    <div class="mock" aria-hidden="true">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="mono" style="margin-left:8px;color:var(--text3);font-size:12px">KobeFinance Terminal</span></div>
+      <div class="ticker">
+        <span>AAPL <b style="color:var(--text)">$228.50</b> <span class="pos">+1.2%</span></span>
+        <span>NPN <b style="color:var(--text)">R3,650</b> <span class="neg">-0.4%</span></span>
+        <span>USDZAR <b style="color:var(--text)">18.05</b> <span class="pos">+0.6%</span></span>
+        <span>DANGCEM <b style="color:var(--text)">₦480</b> <span class="neg">-0.1%</span></span>
+        <span>BTC-USD <b style="color:var(--text)">$96,250</b> <span class="pos">+0.9%</span></span>
+        <span>EURUSD <b style="color:var(--text)">1.0850</b> <span class="pos">+0.1%</span></span>
+      </div>
+      <div class="mockbody">
+        <div class="side">
+          <div class="on">Dashboard</div><div>Markets</div><div>Charts</div>
+          <div>Trading</div><div>Strategy Lab</div><div>Relationship Map</div>
+          <div>Funds</div><div>AI Chat</div>
+        </div>
+        <div class="grid-tiles">
+          <div class="tile"><div class="sym">AAPL</div><div class="px">$228.50</div><div class="ch pos">▲ +1.20%</div></div>
+          <div class="tile"><div class="sym">NPN · JSE</div><div class="px">R3,650</div><div class="ch neg">▼ -0.40%</div></div>
+          <div class="tile"><div class="sym">DANGCEM</div><div class="px">₦480.00</div><div class="ch neg">▼ -0.10%</div></div>
+          <div class="tile"><div class="sym">SCOM · NSE</div><div class="px">KSh18.30</div><div class="ch pos">▲ +0.50%</div></div>
+          <div class="tile"><div class="sym">USDZAR</div><div class="px">18.0512</div><div class="ch pos">▲ +0.60%</div></div>
+          <div class="tile"><div class="sym">BTC-USD</div><div class="px">$96,250</div><div class="ch pos">▲ +0.90%</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <h2>Everything a desk needs</h2>
+    <p class="sub">One native app across every asset class — equities, forex, crypto and funds — from Johannesburg to New York.</p>
+    <div class="features">
+      <div class="card"><div class="ic">📊</div><h3>Global & African markets</h3><p>Live quotes across every major African exchange plus US, UK and Asia — multi-currency, one board.</p></div>
+      <div class="card"><div class="ic">📈</div><h3>Charts & research</h3><p>Native price charts and yfinance-powered fundamentals: P/E, market cap, dividends, analyst targets, earnings.</p></div>
+      <div class="card"><div class="ic">💱</div><h3>Forex & crypto</h3><p>Spot FX majors and African pairs (USD/ZAR, USD/NGN, USD/KES…) and top cryptocurrencies, live.</p></div>
+      <div class="card"><div class="ic">🤖</div><h3>AI Strategy Lab</h3><p>Describe a bot in plain language; it generates backtestable Python + MQL5 and can auto-trade on paper.</p></div>
+      <div class="card"><div class="ic">🧮</div><h3>Portfolio & risk</h3><p>Holdings, allocation and risk metrics — Sharpe, drawdown, and a historical 1-day 95% VaR.</p></div>
+      <div class="card"><div class="ic">🔗</div><h3>Relationship maps</h3><p>Supply-chain & customer graphs with live stock data, importance-weighted edges and a supplier-stress signal.</p></div>
+      <div class="card"><div class="ic">🏦</div><h3>Fund analysis</h3><p>Parse fund statement PDFs into a chain graph — NAV, assets, income, manager & custodian breakdown.</p></div>
+      <div class="card"><div class="ic">💬</div><h3>AI analyst chat</h3><p>Ask about any symbol or the market, grounded in live data — with an offline local-LLM option.</p></div>
+      <div class="card"><div class="ic">⚡</div><h3>Broker trading</h3><p>Paper trading by default; connect MetaTrader 5 to trade forex directly — with per-order confirmation.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <h2>Simple pricing</h2>
+    <p class="sub">Start free. Upgrade when you want live trading, AI bots and portfolio risk. Cancel anytime.</p>
+    <div class="prices">
+      <div class="plan">
+        <div class="name">Free</div>
+        <div class="price">$0<span>/mo</span></div>
+        <span class="tag">For getting started</span>
+        <ul>
+          <li>Live markets, charts & watchlist</li>
+          <li>Forex & crypto</li>
+          <li>Fund statement analysis</li>
+          <li class="no">AI Strategy Lab & bots</li>
+          <li class="no">Portfolio risk (VaR)</li>
+          <li class="no">Live broker trading</li>
+        </ul>
+        <a class="btn" href="#download">Download free</a>
+      </div>
+      <div class="plan hot">
+        <div class="name">Pro</div>
+        <div class="price">$19<span>/mo</span></div>
+        <span class="tag">Most popular</span>
+        <ul>
+          <li>Everything in Free</li>
+          <li>AI Strategy Lab + paper auto-traders</li>
+          <li>Portfolio & risk (Sharpe, drawdown, VaR)</li>
+          <li>Relationship maps + supplier stress</li>
+          <li>AI analyst chat (cloud + local LLM)</li>
+          <li>MetaTrader 5 live forex trading</li>
+        </ul>
+        <a class="btn primary" href="#subscribe">Start Pro</a>
+      </div>
+      <div class="plan">
+        <div class="name">Enterprise</div>
+        <div class="price">Let's talk</div>
+        <span class="tag">Teams & funds</span>
+        <ul>
+          <li>Everything in Pro</li>
+          <li>Team seats & SSO</li>
+          <li>Premium & custom data feeds</li>
+          <li>Custom exchanges & instruments</li>
+          <li>Priority support & SLAs</li>
+          <li>On-prem / private deployment</li>
+        </ul>
+        <a class="btn" href="#subscribe">Contact sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section id="download">
+  <div class="wrap">
+    <h2>Download</h2>
+    <p class="sub">Native desktop app. Windows installer below; macOS/Linux run from source today.</p>
+    <div class="dl">
+      <div class="dlcard">
+        <div class="os">🪟 Windows 10/11 (x64)</div>
+        <div class="meta">One-click installer · ~120 MB</div>
+        <a class="btn primary" href="https://github.com/KobepayTech/kobefinance/releases/latest">Download installer</a>
+      </div>
+      <div class="dlcard">
+        <div class="os">🍎 macOS · 🐧 Linux</div>
+        <div class="meta">Run from source (packaged builds coming soon)</div>
+        <a class="btn" href="https://github.com/KobepayTech/kobefinance#running">Build instructions</a>
+      </div>
+      <div class="dlcard">
+        <div class="os">⌨️ Developers</div>
+        <div class="meta">Python 3.10+ · pip install -e .</div>
+        <a class="btn" href="https://github.com/KobepayTech/kobefinance">View on GitHub</a>
+      </div>
+    </div>
+
+    <div id="subscribe" style="margin-top:34px">
+      <h2 style="font-size:22px">Get launch updates &amp; a Pro trial</h2>
+      <p class="sub" style="margin-bottom:10px">Join the list for release notes, new-exchange coverage, and an early Pro trial. No spam.</p>
+      <form class="subscribe" onsubmit="return false" aria-label="Subscribe for updates">
+        <input type="email" placeholder="you@example.com" aria-label="Email address" />
+        <button class="btn primary" type="submit">Notify me</button>
+      </form>
+      <p class="note">Subscriptions and payments are handled on the secure customer portal after launch — this page never collects payment details.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section>
+  <div class="wrap" style="max-width:820px">
+    <h2>FAQ</h2>
+    <p class="sub">A few common questions.</p>
+    <details><summary>Which markets are covered?</summary><p>Every major African exchange (JSE, NGX, NSE, EGX, CSE, BRVM, GSE and more), US (NASDAQ/NYSE), UK (LSE), Korea/Taiwan, plus spot forex and crypto. Live quotes come from public feeds; some emerging-market names use a simulated feed where no free real-time data exists.</p></details>
+    <details><summary>Is my trading real money?</summary><p>No — trading defaults to a safe paper broker. Live forex requires connecting your own MetaTrader 5 terminal and broker account, and every live order asks for explicit confirmation.</p></details>
+    <details><summary>Do I need an internet connection or API keys?</summary><p>The app runs offline with a simulated feed and a local-LLM option. Live quotes, fundamentals and news use free public endpoints; no API keys required for the basics.</p></details>
+    <details><summary>Is it open source?</summary><p>The desktop app is developed in the open on GitHub. See the repository for licensing details.</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand"><span class="k">KOBE</span>FINANCE</span>
+    <span class="muted">© <span id="yr"></span> KobePay Tech</span>
+    <div class="spacer"></div>
+    <a class="link" href="#features">Features</a>
+    <a class="link" href="#pricing">Pricing</a>
+    <a class="link" href="#download">Download</a>
+    <a class="link" href="https://github.com/KobepayTech/kobefinance">GitHub</a>
+  </div>
+</footer>
+<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>

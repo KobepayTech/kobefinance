@@ -201,7 +201,7 @@
           <li>AI analyst chat (cloud + local LLM)</li>
           <li>MetaTrader 5 live forex trading</li>
         </ul>
-        <a class="btn primary" href="#subscribe">Start Pro</a>
+        <a class="btn primary" id="startPro" href="#subscribe">Start Pro</a>
       </div>
       <div class="plan">
         <div class="name">Enterprise</div>
@@ -247,11 +247,11 @@
     <div id="subscribe" style="margin-top:34px">
       <h2 style="font-size:22px">Get launch updates &amp; a Pro trial</h2>
       <p class="sub" style="margin-bottom:10px">Join the list for release notes, new-exchange coverage, and an early Pro trial. No spam.</p>
-      <form class="subscribe" onsubmit="return false" aria-label="Subscribe for updates">
-        <input type="email" placeholder="you@example.com" aria-label="Email address" />
+      <form class="subscribe" id="subForm" aria-label="Subscribe for updates">
+        <input type="email" id="subEmail" placeholder="you@example.com" aria-label="Email address" required />
         <button class="btn primary" type="submit">Notify me</button>
       </form>
-      <p class="note">Subscriptions and payments are handled on the secure customer portal after launch — this page never collects payment details.</p>
+      <p class="note" id="subMsg">Subscriptions and payments are handled on Stripe's secure checkout — this page never collects payment details.</p>
     </div>
   </div>
 </section>
@@ -279,6 +279,77 @@
     <a class="link" href="https://github.com/KobepayTech/kobefinance">GitHub</a>
   </div>
 </footer>
-<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // Point this at your deployed Cloudflare Worker (see web-backend/README.md).
+  // Leave empty to keep the launch-list-only fallback before Stripe is live.
+  window.KOBE_API = window.KOBE_API || "";
+
+  (function () {
+    var api = window.KOBE_API;
+    var msg = document.getElementById('subMsg');
+
+    function setMsg(text) { if (msg) msg.textContent = text; }
+
+    // Start Pro -> Stripe Checkout (server-created session; no card data here).
+    var startPro = document.getElementById('startPro');
+    if (startPro) {
+      startPro.addEventListener('click', function (e) {
+        if (!api) return; // fall back to the #subscribe anchor
+        e.preventDefault();
+        startPro.textContent = 'Redirecting…';
+        fetch(api + '/create-checkout-session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}'
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.url) { window.location.href = d.url; }
+            else {
+              startPro.textContent = 'Start Pro';
+              location.hash = '#subscribe';
+              setMsg((d && d.error) || 'Billing is coming soon — join the list and we’ll email you.');
+            }
+          })
+          .catch(function () {
+            startPro.textContent = 'Start Pro';
+            location.hash = '#subscribe';
+            setMsg('Could not reach checkout right now — join the list instead.');
+          });
+      });
+    }
+
+    // Launch-list form.
+    var form = document.getElementById('subForm');
+    var email = document.getElementById('subEmail');
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var value = (email && email.value || '').trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) { setMsg('Please enter a valid email.'); return; }
+        if (!api) { setMsg('Thanks! You’re on the list — we’ll be in touch at launch.'); form.reset(); return; }
+        setMsg('Adding you…');
+        fetch(api + '/subscribe', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: value })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.ok) { setMsg('You’re on the list — thanks!'); form.reset(); }
+            else { setMsg((d && d.error) || 'Something went wrong — try again.'); }
+          })
+          .catch(function () { setMsg('Network error — please try again.'); });
+      });
+    }
+
+    // Friendly banner when returning from Stripe Checkout.
+    var params = new URLSearchParams(location.search);
+    if (params.get('checkout') === 'success') setMsg('Payment received — welcome to Pro! Check your email for next steps.');
+    else if (params.get('checkout') === 'cancel') setMsg('Checkout canceled — you can start again any time.');
+  })();
+</script>
 </body>
 </html>

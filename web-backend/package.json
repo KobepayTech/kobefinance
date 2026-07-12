@@ -1,0 +1,13 @@
+{
+  "name": "kobefinance-subscribe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker backing KobeFinance's Pro checkout and launch list.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}

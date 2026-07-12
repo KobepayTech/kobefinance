@@ -4,10 +4,20 @@ from __future__ import annotations
 
 from kobefinance.models import Candle
 from kobefinance.services.backtest.engine import run_backtest
-from kobefinance.services.backtest.library import RsiReversionStrategy, SmaCrossStrategy
+from kobefinance.services.backtest.library import (
+    FactorStrategy,
+    RsiReversionStrategy,
+    SmaCrossStrategy,
+)
 from kobefinance.services.llm.backends import TemplateBackend, make_backend
 from kobefinance.services.llm.base import LLMConfig
-from kobefinance.services.llm.bot_designer import build_strategy, design, parse_spec
+from kobefinance.services.llm.bot_designer import (
+    build_strategy,
+    design,
+    mql5_code,
+    parse_spec,
+    python_code,
+)
 
 
 def test_parse_spec_detects_rsi():
@@ -31,6 +41,34 @@ def test_parse_spec_defaults_to_sma():
 def test_build_strategy_returns_correct_types():
     assert isinstance(build_strategy(parse_spec("rsi oversold")), RsiReversionStrategy)
     assert isinstance(build_strategy(parse_spec("20/50 sma cross")), SmaCrossStrategy)
+
+
+def test_parse_spec_detects_momentum_factor():
+    spec = parse_spec("trade a momentum factor over 30 bars, allow short")
+    assert spec.kind == "factor"
+    assert spec.factor == "momentum"
+    assert spec.params["lookback"] == 30.0
+    assert spec.params["allow_short"] == 1.0
+
+
+def test_parse_spec_detects_macd_and_volatility_factors():
+    assert parse_spec("MACD signal bot").factor == "macd"
+    assert parse_spec("low volatility factor").factor == "volatility"
+
+
+def test_parse_spec_vague_trends_still_defaults_to_sma():
+    # "trends" must not be hijacked by the trend factor keyword.
+    assert parse_spec("something vague about trends").kind == "sma_cross"
+
+
+def test_build_factor_strategy_and_generated_code():
+    spec = parse_spec("acceleration factor 10 bars short")
+    strat = build_strategy(spec)
+    assert isinstance(strat, FactorStrategy)
+    assert strat.factor == "acceleration"
+    py = python_code(spec)
+    assert "factor_series" in py and "rolling_zscore" in py
+    assert "OnTick" in mql5_code(spec)
 
 
 def test_design_offline_produces_runnable_strategy_and_code():

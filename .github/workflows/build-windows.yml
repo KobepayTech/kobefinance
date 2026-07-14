@@ -62,27 +62,24 @@ jobs:
         shell: bash
         run: test -f packaging/dist/KobeFinanceTerminal/KobeFinanceTerminal.exe
 
-      - name: Move build to repo root for Inno Setup
-        shell: bash
-        run: |
-          mkdir -p dist
-          mv packaging/dist/KobeFinanceTerminal dist/KobeFinanceTerminal
-
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
+      # Inno Setup resolves relative paths against the .iss directory
+      # (packaging/), so the PyInstaller output at packaging/dist/ and the
+      # installer land at packaging/dist/installer/.
       - name: Compile installer
         run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\installer.iss
 
       - name: Sanity-check the installer
         shell: bash
-        run: test -f dist/installer/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe
+        run: test -f packaging/dist/installer/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64
-          path: dist/installer/*.exe
+          path: packaging/dist/installer/*.exe
 
       # Publish a downloadable GitHub Release. On a tag build this uses the tag;
       # on a branch build it creates/updates the v<version> tag + release
@@ -99,5 +96,5 @@ jobs:
             Download `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe`
             below and run it. Silent install:
             `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe /VERYSILENT /NORESTART`
-          files: dist/installer/*.exe
+          files: packaging/dist/installer/*.exe
           make_latest: "true"

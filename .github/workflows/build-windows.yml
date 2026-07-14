@@ -9,12 +9,23 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - "claude/clone-finceptterminal-1mfyu6"
+    paths:
+      - "src/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-windows.yml"
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write   # needed to attach the installer to a release
+      contents: write   # needed to create the release and attach the installer
 
     steps:
       - uses: actions/checkout@v4
@@ -28,10 +39,14 @@ jobs:
         shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            version="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
           else
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            version="0.1.0"
           fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Building installer version ${version}"
 
       - name: Install dependencies
         run: |
@@ -59,14 +74,30 @@ jobs:
       - name: Compile installer
         run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\installer.iss
 
+      - name: Sanity-check the installer
+        shell: bash
+        run: test -f dist/installer/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64
           path: dist/installer/*.exe
 
-      - name: Attach installer to release
-        if: github.ref_type == 'tag'
+      # Publish a downloadable GitHub Release. On a tag build this uses the tag;
+      # on a branch build it creates/updates the v<version> tag + release
+      # server-side (via GITHUB_TOKEN), so the installer is available at
+      # /releases/latest without needing a local tag push.
+      - name: Publish installer to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: KobeFinance Terminal v${{ steps.ver.outputs.version }}
+          body: |
+            KobeFinance Terminal v${{ steps.ver.outputs.version }} — Windows x64 installer.
+
+            Download `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe`
+            below and run it. Silent install:
+            `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe /VERYSILENT /NORESTART`
           files: dist/installer/*.exe
+          make_latest: "true"

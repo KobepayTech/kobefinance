@@ -1,0 +1,240 @@
+name: Build release installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string for the installers (e.g. 0.1.0)"
+        default: "0.1.0"
+  push:
+    tags:
+      - "v*"
+    branches:
+      - "claude/clone-finceptterminal-1mfyu6"
+    paths:
+      - "src/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-release.yml"
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    env:
+      # Signing material is optional. Each signing step is gated on the
+      # presence of its secret, so builds still succeed unsigned when unset.
+      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      WINDOWS_CERT_PWD: ${{ secrets.WINDOWS_CERT_PWD }}
+      MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+      MACOS_CERT_PWD: ${{ secrets.MACOS_CERT_PWD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+      AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+      AC_API_KEY_BASE64: ${{ secrets.AC_API_KEY_BASE64 }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
+          else
+            version="0.1.0"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "KOBE_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "Building version ${version} for ${{ matrix.platform }}"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Generate macOS icon
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # sips can emit a valid multi-size .icns straight from the PNG.
+          sips -s format icns assets/kobefinance.png --out packaging/kobefinance.icns || true
+
+      - name: Build app with PyInstaller
+        working-directory: packaging
+        shell: bash
+        run: pyinstaller kobefinance.spec --noconfirm
+
+      # ---- Windows: sign app, build installer, sign installer ---------------
+      - name: Sign Windows app binary
+        if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = "$env:RUNNER_TEMP\cs.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $st = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          & $st.FullName sign /f $pfx /p $env:WINDOWS_CERT_PWD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 "packaging\dist\KobeFinanceTerminal\KobeFinanceTerminal.exe"
+
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        run: choco install innosetup --no-progress -y
+
+      - name: Compile Windows installer
+        if: runner.os == 'Windows'
+        run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\installer.iss
+
+      - name: Sign Windows installer
+        if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = "$env:RUNNER_TEMP\cs.pfx"
+          $st = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          & $st.FullName sign /f $pfx /p $env:WINDOWS_CERT_PWD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 "packaging\dist\installer\KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe"
+
+      - name: Stage Windows artifact
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "packaging/dist/installer/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe" out/
+
+      # ---- macOS: sign .app, build .dmg, notarize + staple ------------------
+      - name: Sign macOS app
+        if: runner.os == 'macOS' && env.MACOS_CERT_BASE64 != ''
+        shell: bash
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KPASS="$(openssl rand -base64 24)"
+          security create-keychain -p "$KPASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPASS" "$KEYCHAIN"
+          echo "$MACOS_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PWD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KPASS" "$KEYCHAIN"
+          codesign --deep --force --options runtime --timestamp \
+            --sign "$MACOS_SIGN_IDENTITY" "packaging/dist/KobeFinanceTerminal.app"
+          codesign --verify --strict --verbose=2 "packaging/dist/KobeFinanceTerminal.app"
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p out dmgroot
+          cp -R "packaging/dist/KobeFinanceTerminal.app" dmgroot/
+          ln -s /Applications dmgroot/Applications
+          hdiutil create -volname "KobeFinance Terminal" -srcfolder dmgroot -ov -format UDZO \
+            "out/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-macos.dmg"
+
+      - name: Notarize and staple macOS DMG
+        if: runner.os == 'macOS' && env.MACOS_CERT_BASE64 != '' && env.AC_API_KEY_ID != ''
+        shell: bash
+        run: |
+          echo "$AC_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/ac_api_key.p8"
+          DMG="out/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-macos.dmg"
+          xcrun notarytool submit "$DMG" \
+            --key "$RUNNER_TEMP/ac_api_key.p8" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+
+      # ---- Linux: tarball -----------------------------------------------------
+      - name: Package Linux tarball
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p out
+          tar -czf "out/KobeFinanceTerminal-${{ steps.ver.outputs.version }}-linux-x64.tar.gz" \
+            -C packaging/dist KobeFinanceTerminal
+
+      # ---- checksums + upload -------------------------------------------------
+      - name: Checksums
+        shell: bash
+        run: |
+          cd out
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            shasum -a 256 * > SHA256SUMS-${{ matrix.platform }}.txt
+          else
+            sha256sum * > SHA256SUMS-${{ matrix.platform }}.txt
+          fi
+          cat SHA256SUMS-${{ matrix.platform }}.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}
+          path: out/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
+          else
+            version="0.1.0"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        shell: bash
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -l release
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: KobeFinance Terminal v${{ steps.ver.outputs.version }}
+          body: |
+            KobeFinance Terminal v${{ steps.ver.outputs.version }} — native installers for Windows, macOS and Linux.
+
+            - **Windows**: `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-windows-x64-setup.exe`
+              (silent install: `... /VERYSILENT /NORESTART`)
+            - **macOS**: `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-macos.dmg`
+              (open the DMG, drag to Applications)
+            - **Linux**: `KobeFinanceTerminal-${{ steps.ver.outputs.version }}-linux-x64.tar.gz`
+              (extract, run `./KobeFinanceTerminal/KobeFinanceTerminal`)
+
+            Verify downloads against the `SHA256SUMS-*.txt` files.
+            See `packaging/SIGNING.md` for code-signing status.
+          files: release/*
+          make_latest: "true"

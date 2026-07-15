@@ -13,6 +13,7 @@ from PySide6.QtCore import QObject, QRectF, QRunnable, Qt, QThreadPool, QTimer, 
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
+    QCompleter,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -26,6 +27,7 @@ from ...services.relationships import (
     GRAPHS,
     IMPORTANCE_WEIGHT,
     RelationshipGraph,
+    build_peer_graph,
     resolve_node,
     stress_signal,
 )
@@ -43,6 +45,37 @@ _ROW_GAP = 104.0
 
 class _HistSignals(QObject):
     done = Signal(object)
+
+
+class _PeerSignals(QObject):
+    done = Signal(object)  # emits (center_uid, RelationshipGraph)
+
+
+class _PeerTask(QRunnable):
+    """Build a correlation peer-graph for an arbitrary stock (off-thread)."""
+
+    def __init__(self, provider, center_uid, center_name, candidate_uids, inst_by_uid, signals):
+        super().__init__()
+        self._provider = provider
+        self._center_uid = center_uid
+        self._center_name = center_name
+        self._candidates = candidate_uids
+        self._inst_by_uid = inst_by_uid
+        self._signals = signals
+
+    def run(self):
+        closes_by_uid: dict[str, list[float]] = {}
+        for uid in self._candidates:
+            try:
+                closes = [c.close for c in self._provider.history(uid, "3M")]
+            except Exception:
+                closes = []
+            if len(closes) >= 8:
+                closes_by_uid[uid] = closes
+        graph = build_peer_graph(
+            self._center_uid, self._center_name, closes_by_uid, self._inst_by_uid
+        )
+        self._signals.done.emit((self._center_uid, graph))
 
 
 class _HistTask(QRunnable):
@@ -86,9 +119,14 @@ class RelationshipMapScreen(Screen):
         self._hist: dict[str, tuple[float, float]] = {}
         self._caps: dict[str, float] = {}
         self._inst_by_uid = {i.uid: i for i in provider.instruments()}
+        self._equities = [i for i in provider.instruments() if i.kind == "equity"]
+        self._peer_graph: RelationshipGraph | None = None
+        self._building = False
         self._pool = QThreadPool.globalInstance()
         self._hsignals = _HistSignals()
         self._hsignals.done.connect(self._on_hist)
+        self._psignals = _PeerSignals()
+        self._psignals.done.connect(self._on_peer)
 
         self._timer = QTimer(self)
         self._timer.setInterval(REFRESH_MS)
@@ -113,8 +151,23 @@ class RelationshipMapScreen(Screen):
         row.setSpacing(10)
 
         self._select = QComboBox()
+        self._select.setMinimumWidth(280)
+        added: set[str] = set()
+        # Curated supply-chain graphs first, flagged with a chain glyph.
         for uid, graph in GRAPHS.items():
-            self._select.addItem(f"{graph.center_name} ({uid.split('.')[0]})", uid)
+            self._select.addItem(f"⛓ {graph.center_name} ({uid.split('.')[0]})", uid)
+            added.add(uid)
+        # Then every equity in the universe — pick any to see a peer graph.
+        for inst in sorted(self._equities, key=lambda i: i.symbol):
+            if inst.uid in added:
+                continue
+            self._select.addItem(f"{inst.symbol} · {inst.name} ({inst.exchange})", inst.uid)
+        # Type-to-search across the whole list.
+        self._select.setEditable(True)
+        self._select.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self._select.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._select.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self._select.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._select.currentIndexChanged.connect(self._on_select)
         row.addWidget(QLabel("Center"))
         row.addWidget(self._select)
@@ -131,11 +184,58 @@ class RelationshipMapScreen(Screen):
 
     def _current_graph(self) -> RelationshipGraph | None:
         uid = self._select.currentData()
-        return GRAPHS.get(uid)
+        if uid in GRAPHS:
+            return GRAPHS[uid]
+        if self._peer_graph is not None and self._peer_graph.center_uid == uid:
+            return self._peer_graph
+        return None
 
     def _on_select(self) -> None:
+        uid = self._select.currentData()
+        if uid is None:
+            return
         self._hist = {}
         self._caps = {}
+        if uid in GRAPHS:
+            self._peer_graph = None
+            self._building = False
+            self._rebuild()
+            self._fetch_history()
+        else:
+            self._start_peer_build(uid)
+
+    def _start_peer_build(self, uid: str) -> None:
+        """Kick off a correlation peer-graph for a non-curated stock."""
+        self._peer_graph = None
+        self._building = True
+        self._render_message(self._building_text(uid))
+        inst = self._inst_by_uid.get(uid)
+        name = inst.name if inst else uid.split(".")[0]
+        # Bound the candidate set for responsiveness: same-exchange peers first,
+        # then a slice of the wider universe, always including the center.
+        same = [i.uid for i in self._equities if inst and i.exchange == inst.exchange]
+        others = [i.uid for i in self._equities if not (inst and i.exchange == inst.exchange)]
+        candidates = [uid] + [u for u in same if u != uid][:24]
+        for u in others:
+            if len(candidates) >= 34:
+                break
+            candidates.append(u)
+        self._pool.start(
+            _PeerTask(self._provider, uid, name, candidates, self._inst_by_uid, self._psignals)
+        )
+
+    def _building_text(self, uid: str) -> str:
+        inst = self._inst_by_uid.get(uid)
+        label = inst.name if inst else uid.split(".")[0]
+        return f"Building relationship graph for {label}…"
+
+    def _on_peer(self, data) -> None:
+        center_uid, graph = data
+        # Ignore stale results if the user moved on to another selection.
+        if self._select.currentData() != center_uid:
+            return
+        self._building = False
+        self._peer_graph = graph
         self._rebuild()
         self._fetch_history()
 
@@ -158,9 +258,24 @@ class RelationshipMapScreen(Screen):
 
     # -- rendering ------------------------------------------------------------
 
+    def _render_message(self, text: str) -> None:
+        """Show a centered status message (building/empty states)."""
+        theme = ACTIVE_THEME
+        self._scene.clear()
+        item = self._scene.addText(text, QFont(theme.font_ui.split(",")[0].strip('"'), 13))
+        item.setDefaultTextColor(QColor(theme.text_tertiary))
+        rect = item.boundingRect()
+        item.setPos(-rect.width() / 2, -rect.height() / 2)
+        self._scene.setSceneRect(item.sceneBoundingRect().adjusted(-40, -40, 40, 40))
+        self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self._stress.setText("")
+
     def _rebuild(self) -> None:
         graph = self._current_graph()
         if graph is None:
+            if self._building:
+                return  # keep the "Building…" message on screen
+            self._render_message("Select a company to see its relationships.")
             return
         self._provider.tick() if hasattr(self._provider, "tick") else None
         self._scene.clear()
@@ -316,6 +431,11 @@ class RelationshipMapScreen(Screen):
         return "\n".join(lines)
 
     def _update_stress(self, graph: RelationshipGraph) -> None:
+        # Supplier-stress only applies to curated supply-chain graphs; peer
+        # graphs use the banner area differently (kept clear).
+        if graph.center_uid not in GRAPHS:
+            self._stress.setText("")
+            return
         count, movers = stress_signal(self._provider, graph)
         if count:
             detail = ", ".join(f"{t} {fmt_pct(p)}" for t, p in movers)

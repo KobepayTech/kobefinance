@@ -8,10 +8,43 @@ from kobefinance.services.relationships import (
     GRAPHS,
     RelatedEntity,
     RelationshipGraph,
+    build_peer_graph,
     resolve_node,
     stress_signal,
 )
 from kobefinance.services.universe import build_universe
+
+
+def _from_returns(rets, start=100.0):
+    out = [start]
+    for r in rets:
+        out.append(out[-1] * (1 + r))
+    return out
+
+
+def test_build_peer_graph_splits_by_correlation_sign():
+    base = [-0.02, 0.01, 0.02, -0.01, 0.02, -0.02, 0.01, 0.01, -0.02, 0.02] * 3
+    closes = {
+        "C.X": _from_returns(base),
+        "W.X": _from_returns([r * 0.9 for r in base]),   # moves with -> right
+        "A.X": _from_returns([-r for r in base]),         # moves against -> left
+    }
+    inst = {
+        "W.X": Instrument("W", "With Co", "NASDAQ", "USD", 100.0),
+        "A.X": Instrument("A", "Against Co", "NASDAQ", "USD", 100.0),
+    }
+    graph = build_peer_graph("C.X", "Center", closes, inst, top=5)
+    names_right = {e.name for e in graph.customers()}
+    names_left = {e.name for e in graph.suppliers()}
+    assert "With Co" in names_right
+    assert "Against Co" in names_left
+    assert all(0 <= e.confidence <= 100 for e in graph.related)
+
+
+def test_build_peer_graph_empty_when_no_history():
+    graph = build_peer_graph("C.X", "Center", {}, {}, top=5)
+    assert graph.center_uid == "C.X"
+    assert graph.related == []
 
 
 def test_apple_graph_present_and_split():

@@ -92,6 +92,76 @@ GRAPHS: dict[str, RelationshipGraph] = {
 }
 
 
+def _returns(closes: list[float]) -> list[float]:
+    out: list[float] = []
+    for i in range(1, len(closes)):
+        prev = closes[i - 1]
+        if prev:
+            out.append(closes[i] / prev - 1.0)
+    return out
+
+
+def _correlation(a: list[float], b: list[float]) -> float | None:
+    """Pearson correlation of two return series (``None`` if too short/flat)."""
+    n = min(len(a), len(b))
+    if n < 8:
+        return None
+    a, b = a[-n:], b[-n:]
+    ma, mb = sum(a) / n, sum(b) / n
+    va = sum((x - ma) ** 2 for x in a)
+    vb = sum((x - mb) ** 2 for x in b)
+    if va <= 0 or vb <= 0:
+        return None
+    cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n))
+    return cov / ((va * vb) ** 0.5)
+
+
+def build_peer_graph(
+    center_uid: str,
+    center_name: str,
+    closes_by_uid: dict[str, list[float]],
+    inst_by_uid: dict,
+    *,
+    top: int = 8,
+) -> RelationshipGraph:
+    """Synthesize a relationship graph for *any* stock from price correlation.
+
+    Peers that move **with** the center (positive correlation) fan out right;
+    those that move **against** it (negative correlation) fan out left. This is
+    a statistical relationship, so it works for any instrument even without a
+    hand-curated supply chain.
+    """
+    center_ret = _returns(closes_by_uid.get(center_uid, []))
+    scored: list[tuple[str, float]] = []
+    for uid, closes in closes_by_uid.items():
+        if uid == center_uid:
+            continue
+        c = _correlation(center_ret, _returns(closes))
+        if c is not None:
+            scored.append((uid, c))
+    scored.sort(key=lambda t: abs(t[1]), reverse=True)
+
+    related: list[RelatedEntity] = []
+    for uid, c in scored[:top]:
+        inst = inst_by_uid.get(uid)
+        name = getattr(inst, "name", None) or uid.split(".")[0]
+        side = "right" if c >= 0 else "left"
+        relation = "moves with" if c >= 0 else "moves against"
+        importance = "high" if abs(c) >= 0.7 else "medium" if abs(c) >= 0.4 else "low"
+        related.append(
+            RelatedEntity(
+                name=name,
+                relation=relation,
+                confidence=int(round(abs(c) * 100)),
+                importance=importance,
+                uid=uid,
+                products=f"correlation {c:+.2f}",
+                side=side,
+            )
+        )
+    return RelationshipGraph(center_name=center_name, center_uid=center_uid, related=related)
+
+
 @dataclass(frozen=True)
 class NodeView:
     """Resolved, display-ready view of a related entity."""

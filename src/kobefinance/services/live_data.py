@@ -14,6 +14,7 @@ non-blocking and the app degrades gracefully when offline.
 from __future__ import annotations
 
 import json
+import ssl
 import threading
 import time
 import urllib.parse
@@ -28,6 +29,27 @@ _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """TLS context with a trustworthy CA bundle.
+
+    Frozen (PyInstaller) builds frequently ship without the OpenSSL CA files
+    that ``urllib`` verifies against, so every HTTPS fetch would fail with
+    ``CERTIFICATE_VERIFY_FAILED`` and the app would silently fall back to the
+    simulator. Loading ``certifi``'s bundle explicitly keeps live data working
+    inside the packaged app.
+    """
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+# Built once; reused by every request below.
+_SSL_CTX = _build_ssl_context()
 _CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=1d&interval=1d"
 _HISTORY_URL = (
     "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range={range}&interval={interval}"
@@ -47,7 +69,7 @@ def fetch_news(query: str, count: int = 12, timeout: float = 10.0) -> list[dict]
     """
     url = _SEARCH_URL.format(q=urllib.parse.quote(query), n=count)
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
         payload = json.load(resp)
     out: list[dict] = []
     for item in payload.get("news", []) or []:
@@ -100,7 +122,7 @@ def _fetch_chart(yahoo_sym: str, timeout: float = 12.0) -> dict:
         _CHART_URL.format(sym=urllib.parse.quote(yahoo_sym)),
         headers={"User-Agent": _UA},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
         payload = json.load(resp)
     return payload["chart"]["result"][0]["meta"]
 
@@ -113,7 +135,7 @@ def fetch_history(
         sym=urllib.parse.quote(yahoo_sym), range=yahoo_range, interval=interval
     )
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
         payload = json.load(resp)
 
     result = payload["chart"]["result"][0]

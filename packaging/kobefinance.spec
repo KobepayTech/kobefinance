@@ -15,7 +15,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 datas, binaries, hiddenimports = [], [], []
 
 # Pull in packages that resolve modules/data dynamically.
-for pkg in ("kobefinance", "yfinance", "pdfplumber", "pdfminer", "curl_cffi"):
+for pkg in ("kobefinance", "yfinance", "pdfplumber", "pdfminer", "curl_cffi", "certifi"):
     try:
         d, b, h = collect_all(pkg)
         datas += d

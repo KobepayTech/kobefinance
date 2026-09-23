@@ -2,8 +2,10 @@ from __future__ import annotations
 import threading,time
 class Heartbeat:
     """Simple stoppable scheduler for autonomous paper/live ticks."""
-    def __init__(self,fn,interval_s=30.): self.fn,self.interval_s,self._stop=fn,interval_s,threading.Event()
+    def __init__(self,fn,interval_s=30.):
+        self.fn=fn; self.interval_s=float(interval_s); self._stop=threading.Event(); self._thread=None
     def start(self):
+        if self._thread and self._thread.is_alive(): return self
         def loop():
             while not self._stop.is_set():
                 started=time.monotonic()

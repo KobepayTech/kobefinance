@@ -1,8 +1,14 @@
 from __future__ import annotations
 from kobefinance.services.trading.broker import OrderRequest,Side
+from kobefinance.services.trading.paper_broker import PaperBroker
 class AutonomousBrokerAdapter:
-    def __init__(self,broker): self.broker=broker
+    def __init__(self,broker):
+        if not isinstance(broker, PaperBroker):
+            raise TypeError('Autonomous execution requires a paper broker')
+        self.broker=broker
     def execute_autonomous(self,symbol,decision,approval):
+        if not approval.approved or decision.action not in {'LONG', 'SHORT', 'HOLD', 'REDUCE', 'CLOSE'}:
+            return None
         pos=next((p for p in self.broker.positions() if p.symbol==symbol),None)
         if decision.action=='HOLD': return None
         if decision.action=='CLOSE': return self.broker.close_position(symbol) if pos else None
